@@ -1,2 +1,2 @@
 # CareerCopilot
-AI agent for for managing job search
+AI agent for managing job search
