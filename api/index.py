@@ -67,7 +67,7 @@ def agent_info() -> AgentInfoResponse:
         ],
     )
 
-
+# feature/llm_model
 
 @app.get("/api/model_architecture", response_class=FileResponse)
 def agent_architecture():
