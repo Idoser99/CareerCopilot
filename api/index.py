@@ -69,10 +69,6 @@ def agent_info() -> AgentInfoResponse:
 
 
 
-
-
-
-
 @app.get("/api/model_architecture", response_class=FileResponse)
 def agent_architecture():
     return FileResponse("resources/architecture.png", media_type="image/png")
