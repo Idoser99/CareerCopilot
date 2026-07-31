@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
-
+from langchain_openai import ChatOpenAI
+import os
 from api.schemas import (
     AgentInfoResponse,
     ExecuteRequest,
@@ -14,6 +15,9 @@ from api.schemas import (
 )
 
 load_dotenv()
+
+model_name = os.getenv("OPENAI_MODEL_PREFIX") + "-" + "gpt-5-mini"
+llm = ChatOpenAI(model=model_name)
 
 app = FastAPI()
 
@@ -67,7 +71,6 @@ def agent_info() -> AgentInfoResponse:
         ],
     )
 
-# feature/llm_model
 
 @app.get("/api/model_architecture", response_class=FileResponse)
 def agent_architecture():
@@ -76,20 +79,24 @@ def agent_architecture():
 
 @app.post("/api/execute", response_model=ExecuteResponse)
 def execute(request: ExecuteRequest) -> ExecuteResponse:
+    # todo: add augmented prompt
+    llm_response = llm.invoke(request.prompt)
+    response = llm_response.content
+    # todo: check if needed a specific tool - if so reroute to it
     return ExecuteResponse(
         status="ok",
         error=None,
-        response=f"CareerCopilot response for: {request.prompt}",
+        response=response,
         steps=[
-            ExecutionStep(
-                module="CV Tailoring",
-                prompt={},
-                response={},
-            ),
-            ExecutionStep(
-                module="Submit Application",
-                prompt={},
-                response={},
-            ),
+            # ExecutionStep(
+            #     module="CV Tailoring",
+            #     prompt={},
+            #     response={},
+            # ),
+            # ExecutionStep(
+            #     module="Submit Application",
+            #     prompt={},
+            #     response={},
+            # )
         ],
     )
