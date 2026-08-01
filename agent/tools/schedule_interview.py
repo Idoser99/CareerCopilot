@@ -1,6 +1,8 @@
-from langchain.tools import BaseTool
+from agent.tools.base_tool import BaseTool
 from typing import Type
 from pydantic import BaseModel, Field
+
+from agent.tools.tool_response import ToolResponse
 
 
 class ScheduleInterviewInput(BaseModel):
@@ -13,5 +15,5 @@ class ScheduleInterview(BaseTool):
                         "calling this tool again will automatically reschedule the interview if existed")
     args_schema: Type[BaseModel] = ScheduleInterviewInput
 
-    def _run(self, job_id) -> str:
-        return f"the interview scheduled for Jan 1, 2027"
+    def _run(self, job_id) -> ToolResponse:
+        return ToolResponse(content=f"the interview scheduled for Jan 1, 2027")

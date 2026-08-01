@@ -1,6 +1,8 @@
-from langchain.tools import BaseTool
+from agent.tools.base_tool import BaseTool
 from typing import Type
 from pydantic import BaseModel, Field
+
+from agent.tools.tool_response import ToolResponse
 
 
 class TailorCVInput(BaseModel):
@@ -13,5 +15,5 @@ class TailorCV(BaseTool):
     description: str = "gets a cv and a job description and returns a tailored cv"
     args_schema: Type[BaseModel] = TailorCVInput
 
-    def _run(self, cv: str, job: str) -> str:
-        return f"{cv}\nTailored for {job}"
+    def _run(self, cv: str, job: str) -> ToolResponse:
+        return ToolResponse(content=f"{cv}\nTailored for {job}")

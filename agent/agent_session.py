@@ -1,6 +1,7 @@
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage
 import json
 
+
 class AgentSession:
     """tracks the agent session - llm calls, tool calls and responses and user prompts"""
 

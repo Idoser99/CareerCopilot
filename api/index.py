@@ -15,7 +15,7 @@ from api.schemas import (
 )
 from agent.registry import create_registry
 from agent.agent import Agent
-from agent.AgentSession import AgentSession
+from agent.agent_session import AgentSession
 
 load_dotenv()
 
@@ -85,13 +85,18 @@ def agent_architecture():
 @app.post("/api/execute", response_model=ExecuteResponse)
 def execute(request: ExecuteRequest) -> ExecuteResponse:
     # todo: add augmented prompt for career copilot
-    session = AgentSession()
-    response = career_copilot.invoke(prompt=request.prompt, session=session)
-    print(session.messages)
-    return ExecuteResponse(
-        status="ok",
-        error=None,
-        response=response,
-        steps=[]
-    )
-
+    try:
+        agent_response = career_copilot.invoke(prompt=request.prompt)
+        return ExecuteResponse(
+            status="ok",
+            error=None,
+            response=agent_response.content,
+            steps=agent_response.steps
+        )
+    except Exception as e:
+        return ExecuteResponse(
+            status="error",
+            error=str(e),
+            response=None,
+            steps=[]
+        )
