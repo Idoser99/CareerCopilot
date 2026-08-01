@@ -3,7 +3,7 @@ import json
 
 
 class AgentSession:
-    """tracks the agent session - llm calls, tool calls and responses and user prompts"""
+    """tracks the agent session - llm calls, tool calls and responses, user prompts"""
 
     def __init__(self):
         self.messages: [BaseMessage] = []

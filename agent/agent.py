@@ -27,12 +27,12 @@ class Agent:
             iteration += 1
 
             # llm raw response based on session history
-            prompt_msgs = session.messages
+            prompt_msgs = [message.model_dump() for message in session.messages]
             response = self.llm.invoke(prompt_msgs)
             session.add_ai_message(response)
             steps.append(ExecutionStep(
                 module="CareerCopilot",
-                prompt={"messages": [msg.model_dump() for msg in prompt_msgs]},
+                prompt={"messages": prompt_msgs},
                 response={"content": response.content, "tool_calls": response.tool_calls}
             ))
 
