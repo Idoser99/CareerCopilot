@@ -6,9 +6,10 @@ import re
 from pathlib import Path
 from typing import Any, Type
 
-from langchain_core.tools import BaseTool
+from agent.tools.base_tool import BaseTool
 from pydantic import BaseModel, Field
 
+from agent.tools.tool_response import ToolResponse
 
 JOBS_FILE = Path(__file__).resolve().parents[2] / "data" / (
     "linkedin_like_simulated_jobs_tech_focused.json"
@@ -251,7 +252,7 @@ class SearchJobs(BaseTool):
         excluded_job_ids: list[str] | None = None,
         minimum_score: float = 1,
         max_results: int = 10,
-    ) -> list[dict]:
+    ) -> ToolResponse:
         if not keyword.strip():
             raise ValueError("keyword cannot be empty")
 
@@ -269,4 +270,4 @@ class SearchJobs(BaseTool):
         jobs = [
             job for job in jobs if "title" in job["match"]["matched_preferences"]
         ][:max_results]
-        return [summarize_job(job) for job in jobs]
+        return ToolResponse(content=[summarize_job(job) for job in jobs])
