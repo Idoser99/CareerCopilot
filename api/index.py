@@ -13,11 +13,16 @@ from api.schemas import (
     Student,
     TeamInfoResponse,
 )
+from agent.registry import create_registry
+from agent.agent import Agent
+from agent.agent_session import AgentSession
 
 load_dotenv()
 
 model_name = os.getenv("OPENAI_MODEL_PREFIX") + "-" + "gpt-5-mini"
 llm = ChatOpenAI(model=model_name)
+tools_registry = create_registry()
+career_copilot = Agent(llm, tools_registry)
 
 app = FastAPI()
 
@@ -79,24 +84,19 @@ def agent_architecture():
 
 @app.post("/api/execute", response_model=ExecuteResponse)
 def execute(request: ExecuteRequest) -> ExecuteResponse:
-    # todo: add augmented prompt
-    llm_response = llm.invoke(request.prompt)
-    response = llm_response.content
-    # todo: check if needed a specific tool - if so reroute to it
-    return ExecuteResponse(
-        status="ok",
-        error=None,
-        response=response,
-        steps=[
-            # ExecutionStep(
-            #     module="CV Tailoring",
-            #     prompt={},
-            #     response={},
-            # ),
-            # ExecutionStep(
-            #     module="Submit Application",
-            #     prompt={},
-            #     response={},
-            # )
-        ],
-    )
+    # todo: add augmented prompt for career copilot
+    try:
+        agent_response = career_copilot.invoke(prompt=request.prompt)
+        return ExecuteResponse(
+            status="ok",
+            error=None,
+            response=agent_response.content,
+            steps=agent_response.steps
+        )
+    except Exception as e:
+        return ExecuteResponse(
+            status="error",
+            error=str(e),
+            response=None,
+            steps=[]
+        )
