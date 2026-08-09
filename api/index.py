@@ -1,13 +1,23 @@
-from fastapi import FastAPI
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 import os
+
+from api.db import database as db
 from api.schemas import (
     AgentInfoResponse,
+    ApplicationResponse,
+    CalendarEventResponse,
+    EmailResponse,
     ExecuteRequest,
     ExecuteResponse,
     ExecutionStep,
+    ProfileResponse,
+    ProfileSummaryResponse,
     PromptExample,
     PromptTemplate,
     Student,
@@ -15,9 +25,11 @@ from api.schemas import (
 )
 from agent.registry import create_registry
 from agent.agent import Agent
-from agent.agent_session import AgentSession
 
 load_dotenv()
+
+default_profile_id = os.getenv("DEFAULT_PROFILE_ID", "").strip()
+PROFILE_HEADER = Header(alias="X-Profile-Id")
 
 model_name = os.getenv("OPENAI_MODEL_PREFIX") + "-" + "gpt-5-mini"
 llm = ChatOpenAI(model=model_name)
@@ -25,7 +37,6 @@ tools_registry = create_registry()
 career_copilot = Agent(llm, tools_registry)
 
 app = FastAPI()
-
 
 @app.get("/ping")
 def ping():
@@ -100,3 +111,64 @@ def execute(request: ExecuteRequest) -> ExecuteResponse:
             response=None,
             steps=[]
         )
+
+
+# -------------- client services ---------------
+
+@app.get("/api/profiles", response_model=list[ProfileSummaryResponse])
+def get_profiles() -> list[ProfileSummaryResponse]:
+    profiles = db.get_profiles()
+    return [
+        ProfileSummaryResponse(
+            id=profile["id"],
+            name=profile["name"],
+            email=profile["email"],
+            has_cv=bool((profile.get("cv_text") or "").strip()),
+        )
+        for profile in profiles
+    ]
+
+
+@app.get("/api/profile", response_model=ProfileResponse)
+def get_profile(
+    header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> ProfileResponse:
+    profile_id = get_profile_id(header_profile_id)
+    return ProfileResponse(**db.get_profile(profile_id))
+
+
+@app.get("/api/applications", response_model=list[ApplicationResponse])
+def get_applications(
+    header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> list[ApplicationResponse]:
+    profile_id = get_profile_id(header_profile_id)
+    return db.get_applications(profile_id)
+
+
+@app.get("/api/emails", response_model=list[EmailResponse])
+def get_emails(
+    header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> list[EmailResponse]:
+    profile_id = get_profile_id(header_profile_id)
+    return db.get_emails(profile_id)
+
+
+@app.get("/api/calendar", response_model=list[CalendarEventResponse])
+@app.get(
+    "/api/calander",
+    response_model=list[CalendarEventResponse],
+    include_in_schema=False,
+)
+def get_calendar_events(
+    header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> list[CalendarEventResponse]:
+    profile_id = get_profile_id(header_profile_id)
+    return db.get_calendar_events(profile_id)
+
+
+def get_profile_id(header_profile_id: str | None) -> UUID:
+    profile_id = header_profile_id or default_profile_id
+    try:
+        return UUID(profile_id)
+    except ValueError as error:
+        raise HTTPException(400, "Profile ID must be a valid UUID") from error

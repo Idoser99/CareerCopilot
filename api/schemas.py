@@ -1,4 +1,7 @@
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
+from uuid import UUID
+
 from pydantic import BaseModel
 
 
@@ -45,3 +48,51 @@ class ExecuteResponse(BaseModel):
     error: str | None
     response: str | None
     steps: list[ExecutionStep]
+
+
+class ProfileSummaryResponse(BaseModel):
+    id: UUID
+    name: str
+    email: str
+    has_cv: bool
+
+
+class ProfileResponse(BaseModel):
+    id: UUID
+    name: str
+    email: str
+    cv_text: str | None
+    created_at: datetime
+
+
+class ApplicationResponse(BaseModel):
+    id: UUID
+    profile_id: UUID
+    job_id: str
+    job_title: str
+    company: str
+    tailored_cv_text: str | None
+    status: Literal["draft", "pending", "accepted", "rejected", "scheduled"]
+    submitted_at: datetime | None
+    created_at: datetime
+
+
+class EmailResponse(BaseModel):
+    id: UUID
+    application_id: UUID
+    direction: Literal["inbound", "outbound"]
+    type: Literal["submitted", "accepted", "rejected", "confirmation"]
+    subject: str
+    body: str
+    created_at: datetime
+
+
+class CalendarEventResponse(BaseModel):
+    id: UUID
+    application_id: UUID
+    event_type: str
+    title: str
+    description: str | None
+    starts_at: datetime
+    ends_at: datetime
+    status: Literal["scheduled", "cancelled", "completed"]
