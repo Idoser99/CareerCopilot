@@ -1,6 +1,7 @@
 from agent.tools.base_tool import BaseTool
 from agent.tools.schedule_interview import ScheduleInterview
-from agent.tools.tailor_cv import TailorCV
+from agent.tools.skill_gap_analyzer import SkillGapAnalyzer
+from agent.tools.write_cv import WriteCV
 from agent.tools.search_jobs import SearchJobs
 from agent.tools.submit_application import SubmitApplication
 
@@ -22,7 +23,8 @@ class ToolRegistry:
 def create_registry() -> ToolRegistry:
     return ToolRegistry([
         ScheduleInterview(),
-        TailorCV(),
+        SkillGapAnalyzer(),
+        WriteCV(),
         SearchJobs(),
         SubmitApplication()
     ])
