@@ -33,8 +33,6 @@ PROFILE_HEADER = Header(alias="X-Profile-Id")
 
 model_name = os.getenv("OPENAI_MODEL_PREFIX") + "-" + "gpt-5-mini"
 llm = ChatOpenAI(model=model_name)
-tools_registry = create_registry()
-career_copilot = Agent(llm, tools_registry)
 
 app = FastAPI()
 
@@ -94,9 +92,15 @@ def agent_architecture():
 
 
 @app.post("/api/execute", response_model=ExecuteResponse)
-def execute(request: ExecuteRequest) -> ExecuteResponse:
+def execute(
+    request: ExecuteRequest,
+    header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> ExecuteResponse:
     # todo: add augmented prompt for career copilot
     try:
+        profile_id = get_profile_id(header_profile_id)
+        registry = create_registry(profile_id)
+        career_copilot = Agent(llm, registry)
         agent_response = career_copilot.invoke(prompt=request.prompt)
         return ExecuteResponse(
             status="ok",
