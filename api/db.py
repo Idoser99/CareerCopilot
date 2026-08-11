@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from dotenv import load_dotenv
@@ -135,8 +135,13 @@ class Database:
         )
         return emails[0]
 
-    def get_calendar_events(self, profile_id: UUID) -> list[dict]:
-        return _execute(
+    def get_calendar_events(
+        self,
+        profile_id: UUID,
+        application_id: UUID | None = None,
+        future_only: bool = False,
+    ) -> list[dict]:
+        query = (
             self._get_client()
             .table("calendar_events")
             .select(
@@ -144,8 +149,99 @@ class Database:
                 "starts_at,ends_at,status,applications!inner(profile_id)"
             )
             .eq("applications.profile_id", str(profile_id))
-            .order("starts_at")
         )
+        if application_id:
+            query = query.eq("application_id", str(application_id))
+        if future_only:
+            query = query.gte("starts_at", datetime.now(timezone.utc).isoformat())
+        return _execute(query.order("starts_at"))
+
+    def add_calendar_event(
+        self,
+        profile_id: UUID,
+        application_id: UUID,
+        event_type: str,
+        title: str,
+        description: str | None,
+        starts_at: datetime,
+        ends_at: datetime,
+    ) -> dict:
+        applications = _execute(
+            self._get_client()
+            .table("applications")
+            .select("id")
+            .eq("id", str(application_id))
+            .eq("profile_id", str(profile_id))
+            .limit(1)
+        )
+        if not applications:
+            raise HTTPException(404, "Application not found")
+
+        events = _execute(
+            self._get_client()
+            .table("calendar_events")
+            .insert({
+                "application_id": str(application_id),
+                "event_type": event_type,
+                "title": title,
+                "description": description,
+                "starts_at": starts_at.isoformat(),
+                "ends_at": ends_at.isoformat(),
+                "status": "scheduled",
+            })
+        )
+        return events[0]
+
+    def update_calendar_event(
+        self,
+        profile_id: UUID,
+        calendar_event_id: UUID,
+        starts_at: datetime | None = None,
+        duration_minutes: int | None = None,
+        title: str | None = None,
+        description: str | None = None,
+    ) -> dict:
+        events = _execute(
+            self._get_client()
+            .table("calendar_events")
+            .select(
+                "id,starts_at,ends_at,applications!inner(profile_id)"
+            )
+            .eq("id", str(calendar_event_id))
+            .eq("applications.profile_id", str(profile_id))
+            .limit(1)
+        )
+        if not events:
+            raise HTTPException(404, "Calendar event not found")
+
+        values = {}
+        if starts_at is not None or duration_minutes is not None:
+            current_start = datetime.fromisoformat(
+                events[0]["starts_at"].replace("Z", "+00:00")
+            )
+            current_end = datetime.fromisoformat(
+                events[0]["ends_at"].replace("Z", "+00:00")
+            )
+            new_start = starts_at or current_start
+            duration = (
+                timedelta(minutes=duration_minutes)
+                if duration_minutes is not None
+                else current_end - current_start
+            )
+            values["starts_at"] = new_start.isoformat()
+            values["ends_at"] = (new_start + duration).isoformat()
+        if title is not None:
+            values["title"] = title
+        if description is not None:
+            values["description"] = description
+
+        updated_events = _execute(
+            self._get_client()
+            .table("calendar_events")
+            .update(values)
+            .eq("id", str(calendar_event_id))
+        )
+        return updated_events[0]
 
 
 database = Database()
