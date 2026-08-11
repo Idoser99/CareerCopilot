@@ -1,20 +1,31 @@
 from agent.tools.base_tool import BaseTool
 from typing import Type
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from agent.tools.tool_response import ToolResponse
+from api.db import database as db
 
 
 class SubmitApplicationInput(BaseModel):
-    cv: str = Field(description="a cv to submit")
-    job_id: int = Field(description="a job id to submit the cv to")
+    application_id: UUID = Field(description="the application to submit")
 
 
 class SubmitApplication(BaseTool):
     name: str = "submit_application"
-    description: str = "gets a cv and a job id and submits the cv for that job"
+    description: str = "submits an existing application"
     args_schema: Type[BaseModel] = SubmitApplicationInput
 
-    def _run(self, cv: str, job_id: int) -> ToolResponse:
-        return ToolResponse(content=f"cv was submitted successfully for job id: {job_id}\n"
-                                    f"decision: accepted as a candidate, please schedule an interview")
+    def _run(self, application_id: UUID) -> ToolResponse:
+        application = db.set_application_status(
+            profile_id=self.profile_id,
+            application_id=application_id,
+            status="pending",
+        )
+        return ToolResponse(content={
+            "message": "Application submitted successfully",
+            "application_id": str(application_id),
+            "status": application["status"],
+            "submitted_at": application["submitted_at"],
+        })

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from uuid import UUID
 
 from dotenv import load_dotenv
@@ -58,6 +59,27 @@ class Database:
             .eq("profile_id", str(profile_id))
             .order("created_at", desc=True)
         )
+
+    def set_application_status(
+        self,
+        profile_id: UUID,
+        application_id: UUID,
+        status: str,
+    ) -> dict:
+        values = {"status": status}
+        if status == "pending":
+            values["submitted_at"] = datetime.now(timezone.utc).isoformat()
+
+        applications = _execute(
+            self._get_client()
+            .table("applications")
+            .update(values)
+            .eq("id", str(application_id))
+            .eq("profile_id", str(profile_id))
+        )
+        if not applications:
+            raise HTTPException(404, "Application not found")
+        return applications[0]
 
     def get_emails(self, profile_id: UUID) -> list[dict]:
         return _execute(
