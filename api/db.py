@@ -81,8 +81,13 @@ class Database:
             raise HTTPException(404, "Application not found")
         return applications[0]
 
-    def get_emails(self, profile_id: UUID) -> list[dict]:
-        return _execute(
+    def get_emails(
+        self,
+        profile_id: UUID,
+        direction: str | None = None,
+        application_id: UUID | None = None,
+    ) -> list[dict]:
+        query = (
             self._get_client()
             .table("emails")
             .select(
@@ -90,8 +95,45 @@ class Database:
                 "applications!inner(profile_id)"
             )
             .eq("applications.profile_id", str(profile_id))
-            .order("created_at", desc=True)
         )
+        if direction:
+            query = query.eq("direction", direction)
+        if application_id:
+            query = query.eq("application_id", str(application_id))
+        return _execute(query.order("created_at", desc=True))
+
+    def add_email(
+        self,
+        profile_id: UUID,
+        application_id: UUID,
+        direction: str,
+        email_type: str,
+        subject: str,
+        body: str,
+    ) -> dict:
+        applications = _execute(
+            self._get_client()
+            .table("applications")
+            .select("id")
+            .eq("id", str(application_id))
+            .eq("profile_id", str(profile_id))
+            .limit(1)
+        )
+        if not applications:
+            raise HTTPException(404, "Application not found")
+
+        emails = _execute(
+            self._get_client()
+            .table("emails")
+            .insert({
+                "application_id": str(application_id),
+                "direction": direction,
+                "type": email_type,
+                "subject": subject,
+                "body": body,
+            })
+        )
+        return emails[0]
 
     def get_calendar_events(self, profile_id: UUID) -> list[dict]:
         return _execute(
