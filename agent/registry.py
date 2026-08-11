@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from agent.tools.base_tool import BaseTool
+from agent.tools.list_applications import ListApplications
 from agent.tools.schedule_interview import ScheduleInterview
 from agent.tools.tailor_cv import TailorCV
 from agent.tools.search_jobs import SearchJobs
@@ -23,6 +24,7 @@ class ToolRegistry:
 
 def create_registry(profile_id: UUID) -> ToolRegistry:
     return ToolRegistry([
+        ListApplications(profile_id=profile_id),
         ScheduleInterview(profile_id=profile_id),
         TailorCV(profile_id=profile_id),
         SearchJobs(profile_id=profile_id),
