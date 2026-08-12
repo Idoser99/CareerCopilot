@@ -65,6 +65,10 @@ class ProfileResponse(BaseModel):
     created_at: datetime
 
 
+class CvUploadRequest(BaseModel):
+    cv_text: str
+
+
 class ApplicationResponse(BaseModel):
     id: UUID
     profile_id: UUID

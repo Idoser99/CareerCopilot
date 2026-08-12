@@ -48,6 +48,17 @@ class Database:
             raise HTTPException(404, "Profile not found")
         return profiles[0]
 
+    def set_profile_cv(self, profile_id: UUID, cv_text: str) -> dict:
+        profiles = _execute(
+            self._get_client()
+            .table("profiles")
+            .update({"cv_text": cv_text})
+            .eq("id", str(profile_id))
+        )
+        if not profiles:
+            raise HTTPException(404, "Profile not found")
+        return profiles[0]
+
     def get_applications(self, profile_id: UUID) -> list[dict]:
         return _execute(
             self._get_client()

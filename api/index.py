@@ -12,6 +12,7 @@ from api.schemas import (
     AgentInfoResponse,
     ApplicationResponse,
     CalendarEventResponse,
+    CvUploadRequest,
     EmailResponse,
     ExecuteRequest,
     ExecuteResponse,
@@ -35,6 +36,7 @@ model_name = os.getenv("OPENAI_MODEL_PREFIX") + "-" + "gpt-5-mini"
 llm = ChatOpenAI(model=model_name)
 
 app = FastAPI()
+
 
 @app.get("/ping")
 def ping():
@@ -93,8 +95,8 @@ def agent_architecture():
 
 @app.post("/api/execute", response_model=ExecuteResponse)
 def execute(
-    request: ExecuteRequest,
-    header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+        request: ExecuteRequest,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
 ) -> ExecuteResponse:
     # todo: add augmented prompt for career copilot
     try:
@@ -135,7 +137,7 @@ def get_profiles() -> list[ProfileSummaryResponse]:
 
 @app.get("/api/profile", response_model=ProfileResponse)
 def get_profile(
-    header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
 ) -> ProfileResponse:
     profile_id = get_profile_id(header_profile_id)
     return ProfileResponse(**db.get_profile(profile_id))
@@ -143,7 +145,7 @@ def get_profile(
 
 @app.get("/api/applications", response_model=list[ApplicationResponse])
 def get_applications(
-    header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
 ) -> list[ApplicationResponse]:
     profile_id = get_profile_id(header_profile_id)
     return db.get_applications(profile_id)
@@ -151,23 +153,27 @@ def get_applications(
 
 @app.get("/api/emails", response_model=list[EmailResponse])
 def get_emails(
-    header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
 ) -> list[EmailResponse]:
     profile_id = get_profile_id(header_profile_id)
     return db.get_emails(profile_id)
 
 
 @app.get("/api/calendar", response_model=list[CalendarEventResponse])
-@app.get(
-    "/api/calander",
-    response_model=list[CalendarEventResponse],
-    include_in_schema=False,
-)
 def get_calendar_events(
-    header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
 ) -> list[CalendarEventResponse]:
     profile_id = get_profile_id(header_profile_id)
     return db.get_calendar_events(profile_id)
+
+
+@app.post("/api/profile/cv", response_model=ProfileResponse)
+def upload_cv(
+        request: CvUploadRequest,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> ProfileResponse:
+    profile_id = get_profile_id(header_profile_id)
+    return ProfileResponse(**db.set_profile_cv(profile_id, request.cv_text))
 
 
 def get_profile_id(header_profile_id: str | None) -> UUID:
