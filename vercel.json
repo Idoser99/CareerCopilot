@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm --prefix CareerCopilotUI ci",
+  "buildCommand": "npm --prefix CareerCopilotUI run build",
+  "outputDirectory": "CareerCopilotUI/dist",
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 300,
+      "includeFiles": "{data,resources}/**"
+    }
+  }
+}
