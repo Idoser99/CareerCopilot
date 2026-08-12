@@ -1,4 +1,5 @@
 from agent.tools.base_tool import BaseTool
+from agent.tools.preparation_plan import PreparationPlan
 from agent.tools.schedule_interview import ScheduleInterview
 from agent.tools.tailor_cv import TailorCV
 from agent.tools.search_jobs import SearchJobs
@@ -21,6 +22,7 @@ class ToolRegistry:
 
 def create_registry() -> ToolRegistry:
     return ToolRegistry([
+        PreparationPlan(),
         ScheduleInterview(),
         TailorCV(),
         SearchJobs(),
