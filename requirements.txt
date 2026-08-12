@@ -10,3 +10,4 @@ langchain_text_splitters
 # Data Utilities
 pandas
 python-dotenv
+supabase
