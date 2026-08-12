@@ -107,8 +107,9 @@ The final plan should clearly communicate:
 Choose the wording, headings, and organization that best suit the particular
 candidate and opportunity. There is no required output schema.
 
-Keep the response concise, useful, and easy to follow. Do not invent facts about
-the candidate, company, or job.
+Keep the response concise, useful, and easy to follow. 
+Do not invent facts about the candidate, company, or job. 
+Do not request any additional information from the user, or ask him any follow up questions.
 """.strip()
 
 
