@@ -1,0 +1,27 @@
+{
+  "name": "career-copilot-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "npm@10.9.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:mock": "CAREER_COPILOT_MOCK=true vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.13",
+    "fullcalendar": "^7.0.2",
+    "mammoth": "^1.12.1",
+    "marked": "^18.0.9",
+    "pdfjs-dist": "5.4.624"
+  },
+  "devDependencies": {
+    "vite": "^6.1.0"
+  }
+}
