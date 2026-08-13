@@ -1,6 +1,8 @@
 from uuid import UUID
 
 from agent.tools.base_tool import BaseTool
+from agent.tools.skill_gap_analyzer import SkillGapAnalyzer
+from agent.tools.write_cv import WriteCV
 from agent.tools.list_applications import ListApplications
 from agent.tools.list_calander_events import ListCalanderEvents
 from agent.tools.list_emails import ListEmails
@@ -28,6 +30,8 @@ class ToolRegistry:
 
 def create_registry(profile_id: UUID) -> ToolRegistry:
     return ToolRegistry([
+        SkillGapAnalyzer(profile_id=profile_id),
+        WriteCV(profile_id=profile_id),
         ListApplications(profile_id=profile_id),
         ListCalanderEvents(profile_id=profile_id),
         ListEmails(profile_id=profile_id),

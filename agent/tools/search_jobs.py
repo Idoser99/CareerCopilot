@@ -15,6 +15,37 @@ JOBS_FILE = Path(__file__).resolve().parents[2] / "data" / (
     "linkedin_like_simulated_jobs_tech_focused.json"
 )
 
+RETRIEVABLE_FIELDS = {
+    "company.industry": ("company", "industry"),
+    "company.website": ("company", "website"),
+    "company.verified": ("company", "verified"),
+    "company.logo_url": ("company", "logo_url"),
+    "location.city": ("location", "city"),
+    "location.region": ("location", "region"),
+    "location.country": ("location", "country"),
+    "location.timezone": ("location", "timezone"),
+    "location.remote_allowed": ("location", "remote_allowed"),
+    "location.relocation_assistance": ("location", "relocation_assistance"),
+    "employment.job_function": ("employment", "job_function"),
+    "employment.industries": ("employment", "industries"),
+    "employment.experience_years": ("employment", "experience_years"),
+    "posting.valid_through": ("posting", "valid_through"),
+    "posting.status": ("posting", "status"),
+    "posting.promoted": ("posting", "promoted"),
+    "posting.easy_apply": ("posting", "easy_apply"),
+    "posting.applicant_count": ("posting", "applicant_count"),
+    "posting.views": ("posting", "views"),
+    "description.responsibilities": ("description", "responsibilities"),
+    "description.education": ("description", "education"),
+    "description.languages": ("description", "languages"),
+    "description.benefits": ("description", "benefits"),
+    "compensation": ("compensation",),
+    "application.application_method": ("application", "application_method"),
+    "application.contact_email": ("application", "contact_email"),
+    "application.requires_cover_letter": ("application", "requires_cover_letter"),
+    "application.requires_portfolio": ("application", "requires_portfolio"),
+}
+
 
 class JobSummary(BaseModel):
     job_id: str
@@ -53,8 +84,18 @@ class SearchJobsInput(BaseModel):
     companies: list[str] = Field(
         default_factory=list, description="Only return these companies when supplied"
     )
+    job_id: str | None = Field(
+        default=None, description="Exact job ID that must match when supplied"
+    )
     excluded_job_ids: list[str] = Field(
         default_factory=list, description="Job IDs that must not be returned"
+    )
+    retrieve_fields: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Extra fields to include in retrieved_fields. Allowed values: "
+            + ", ".join(RETRIEVABLE_FIELDS)
+        ),
     )
     minimum_score: float = Field(default=1, ge=0, le=70)
     max_results: int = Field(default=10, ge=1, le=50)
@@ -122,6 +163,11 @@ def find_relevant_jobs(preferences: dict, max_results: int = 10) -> list[dict]:
             raise TypeError(f"preferences['{field}'] must be a list of strings")
         wanted[field] = list({normalize(x): x.strip() for x in values if x.strip()}.values())
 
+    wanted_job_id = preferences.get("job_id")
+    if wanted_job_id is not None and not isinstance(wanted_job_id, str):
+        raise TypeError("preferences['job_id'] must be a string")
+    wanted_job_id = normalize(wanted_job_id)
+
     minimum_score = preferences.get("minimum_score", 0)
     if (
         not isinstance(minimum_score, (int, float))
@@ -167,6 +213,8 @@ def find_relevant_jobs(preferences: dict, max_results: int = 10) -> list[dict]:
             accepted["employment_types"] and employment not in accepted["employment_types"],
             accepted["companies"] and company not in accepted["companies"],
         ))
+        if wanted_job_id and job_id != wanted_job_id:
+            continue
         if job_id in accepted["excluded_job_ids"]:
             continue
         if wrong_location or wrong_exact_filter:
@@ -212,13 +260,13 @@ def find_relevant_jobs(preferences: dict, max_results: int = 10) -> list[dict]:
     return [item[0] for item in ranked_jobs[:max_results]]
 
 
-def summarize_job(job: dict) -> dict:
+def summarize_job(job: dict, retrieve_fields: list[str] | None = None) -> dict:
     """Create the smaller job object returned by the tool."""
     match = job["match"]
     skills = job.get("skills", [])
     required = get_value(job, "description", "qualifications", "required") or []
     preferred = get_value(job, "description", "qualifications", "preferred") or []
-    return JobSummary(
+    summary = JobSummary(
         job_id=str(job.get("job_id") or ""),
         title=str(job.get("title") or ""),
         company=str(get_value(job, "company", "name") or ""),
@@ -235,6 +283,13 @@ def summarize_job(job: dict) -> dict:
         application_url=get_value(job, "application", "application_url"),
     ).model_dump()
 
+    if retrieve_fields:
+        summary["retrieved_fields"] = {
+            field: get_value(job, *RETRIEVABLE_FIELDS[field])
+            for field in retrieve_fields
+        }
+    return summary
+
 
 class SearchJobs(BaseTool):
     name: str = "search_jobs"
@@ -249,12 +304,21 @@ class SearchJobs(BaseTool):
         seniority_levels: list[str] | None = None,
         employment_types: list[str] | None = None,
         companies: list[str] | None = None,
+        job_id: str | None = None,
         excluded_job_ids: list[str] | None = None,
+        retrieve_fields: list[str] | None = None,
         minimum_score: float = 1,
         max_results: int = 10,
     ) -> ToolResponse:
         if not keyword.strip():
             raise ValueError("keyword cannot be empty")
+
+        retrieve_fields = retrieve_fields or []
+        unknown_fields = [
+            field for field in retrieve_fields if field not in RETRIEVABLE_FIELDS
+        ]
+        if unknown_fields:
+            raise ValueError(f"Unknown retrieve_fields: {', '.join(unknown_fields)}")
 
         preferences = {
             "job_titles": [keyword],
@@ -263,6 +327,7 @@ class SearchJobs(BaseTool):
             "seniority_levels": seniority_levels or [],
             "employment_types": employment_types or [],
             "companies": companies or [],
+            "job_id": job_id,
             "excluded_job_ids": excluded_job_ids or [],
             "minimum_score": minimum_score,
         }
@@ -270,4 +335,6 @@ class SearchJobs(BaseTool):
         jobs = [
             job for job in jobs if "title" in job["match"]["matched_preferences"]
         ][:max_results]
-        return ToolResponse(content=[summarize_job(job) for job in jobs])
+        return ToolResponse(
+            content=[summarize_job(job, retrieve_fields) for job in jobs]
+        )

@@ -10,4 +10,8 @@ langchain_text_splitters
 # Data Utilities
 pandas
 python-dotenv
+python-docx
+
+# Testing
+pytest
 supabase
