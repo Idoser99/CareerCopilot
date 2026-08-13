@@ -298,7 +298,7 @@ class SearchJobs(BaseTool):
 
     def _run(
         self,
-        keyword: str,
+        keyword: str | None,
         locations: list[str] | None = None,
         workplace_types: list[str] | None = None,
         seniority_levels: list[str] | None = None,
