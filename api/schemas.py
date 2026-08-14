@@ -43,6 +43,10 @@ class ExecuteRequest(BaseModel):
     prompt: str
 
 
+class DemoApplicationDecisionRequest(BaseModel):
+    decision: Literal["accepted", "rejected"]
+
+
 class ExecuteResponse(BaseModel):
     status: str
     error: str | None
@@ -114,6 +118,12 @@ class EmailResponse(BaseModel):
     subject: str
     body: str
     created_at: datetime
+
+
+class DemoApplicationDecisionResponse(BaseModel):
+    decision: Literal["accepted", "rejected"]
+    email: EmailResponse
+    notification: NotificationResponse
 
 
 class CalendarEventResponse(BaseModel):

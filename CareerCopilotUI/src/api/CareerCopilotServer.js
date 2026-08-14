@@ -98,6 +98,17 @@ export class CareerCopilotServer {
     });
   }
 
+  simulateApplicationDecision(applicationId, decision, { signal } = {}) {
+    return this.#request(
+      `/demo/applications/${encodeURIComponent(applicationId)}/decision`,
+      {
+        method: "POST",
+        body: { decision },
+        signal,
+      },
+    );
+  }
+
   getEmails({ signal } = {}) {
     return this.#request("/emails", { signal });
   }

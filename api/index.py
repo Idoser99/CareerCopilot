@@ -1,3 +1,4 @@
+import os
 from typing import Annotated
 from urllib.parse import quote
 from uuid import UUID
@@ -6,7 +7,6 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, Response
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-import os
 
 from data.db import database as db
 from api.schemas import (
@@ -16,6 +16,8 @@ from api.schemas import (
     ApplicationResponse,
     CalendarEventResponse,
     CvUploadRequest,
+    DemoApplicationDecisionRequest,
+    DemoApplicationDecisionResponse,
     EmailResponse,
     ExecuteRequest,
     ExecuteResponse,
@@ -32,6 +34,7 @@ from agent.registry import create_registry
 from agent.agent import Agent
 from agent.agent_session import AgentSession
 from services.cv_document import CVWriteError, create_profile_cv_docx
+from services.demo_application_decision import demo_application_decision_service
 
 load_dotenv()
 
@@ -252,6 +255,25 @@ def mark_all_notifications_as_read(
 ) -> list[NotificationResponse]:
     profile_id = get_profile_id(header_profile_id)
     return db.mark_all_notifications_as_read(profile_id)
+
+
+@app.post("/api/demo/applications/{application_id}/decision", response_model=DemoApplicationDecisionResponse)
+def simulate_application_decision(
+        application_id: UUID,
+        request: DemoApplicationDecisionRequest,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> DemoApplicationDecisionResponse:
+    profile_id = get_profile_id(header_profile_id)
+    email, notification = demo_application_decision_service.simulate(
+        profile_id=profile_id,
+        application_id=application_id,
+        decision=request.decision,
+    )
+    return DemoApplicationDecisionResponse(
+        decision=request.decision,
+        email=email,
+        notification=notification,
+    )
 
 
 @app.get("/api/applications", response_model=list[ApplicationResponse])
