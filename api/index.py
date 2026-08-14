@@ -11,6 +11,8 @@ import os
 from data.db import database as db
 from api.schemas import (
     AgentInfoResponse,
+    AgentSessionResponse,
+    AgentSessionSummaryResponse,
     ApplicationResponse,
     CalendarEventResponse,
     CvUploadRequest,
@@ -27,12 +29,16 @@ from api.schemas import (
 )
 from agent.registry import create_registry
 from agent.agent import Agent
+from agent.agent_session import AgentSession
 from services.cv_document import CVWriteError, create_profile_cv_docx
 
 load_dotenv()
 
 default_profile_id = os.getenv("DEFAULT_PROFILE_ID", "").strip()
 PROFILE_HEADER = Header(alias="X-Profile-Id")
+SESSION_HEADER_NAME = "X-Session-Id"
+SESSION_HEADER = Header(alias=SESSION_HEADER_NAME)
+TRACK_SESSION_HEADER = Header(alias="X-Track-Session")
 
 model_name = os.getenv("OPENAI_MODEL_PREFIX") + "-" + "gpt-5-mini"
 llm = ChatOpenAI(model=model_name)
@@ -98,14 +104,52 @@ def agent_architecture():
 @app.post("/api/execute", response_model=ExecuteResponse)
 def execute(
         request: ExecuteRequest,
+        response: Response,
         header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+        header_session_id: Annotated[str | None, SESSION_HEADER] = None,
+        track_session: Annotated[bool, TRACK_SESSION_HEADER] = False,
 ) -> ExecuteResponse:
-    # todo: add augmented prompt for career copilot
     try:
         profile_id = get_profile_id(header_profile_id)
+        session = None
+        session_id = None
+        session_title = None
+
+        if header_session_id:
+            session_id = get_session_id(header_session_id)
+            stored_session = db.get_agent_session(profile_id, session_id)
+            stored_messages = stored_session.get("messages") or []
+            session = AgentSession(history=stored_messages)
+            session_title = stored_session.get("title") or "New conversation"
+            if not stored_messages and session_title == "New conversation":
+                session_title = create_session_title(request.prompt)
+        elif track_session:
+            session_title = create_session_title(request.prompt)
+            stored_session = db.create_agent_session(
+                profile_id=profile_id,
+                messages=[],
+                title=session_title,
+            )
+            session_id = UUID(stored_session["id"])
+            session = AgentSession()
+
+        if session_id:
+            response.headers[SESSION_HEADER_NAME] = str(session_id)
+
         registry = create_registry(profile_id)
         career_copilot = Agent(llm, registry)
-        agent_response = career_copilot.invoke(prompt=request.prompt)
+        agent_response = career_copilot.invoke(
+            prompt=request.prompt,
+            session=session
+        )
+
+        if track_session and session_id:
+            db.update_agent_session(
+                profile_id=profile_id,
+                session_id=session_id,
+                messages=session.get_lean_session(),
+                title=session_title,
+            )
         return ExecuteResponse(
             status="ok",
             error=None,
@@ -122,6 +166,45 @@ def execute(
 
 
 # -------------- client services ---------------
+
+@app.post("/api/sessions", response_model=AgentSessionSummaryResponse)
+def create_agent_session(
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> AgentSessionSummaryResponse:
+    profile_id = get_profile_id(header_profile_id)
+    session = db.create_agent_session(profile_id, [])
+    return AgentSessionSummaryResponse(
+        id=session["id"],
+        title=session.get("title") or "New conversation",
+    )
+
+
+@app.get("/api/sessions", response_model=list[AgentSessionSummaryResponse])
+def get_agent_sessions(
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> list[AgentSessionSummaryResponse]:
+    profile_id = get_profile_id(header_profile_id)
+    return [
+        AgentSessionSummaryResponse(
+            id=session["id"],
+            title=session.get("title") or "New conversation",
+        )
+        for session in db.get_agent_sessions(profile_id)
+    ]
+
+
+@app.get("/api/sessions/{session_id}", response_model=AgentSessionResponse)
+def get_agent_session(
+        session_id: UUID,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> AgentSessionResponse:
+    profile_id = get_profile_id(header_profile_id)
+    session = db.get_agent_session(profile_id, session_id)
+    return AgentSessionResponse(
+        id=session["id"],
+        title=session.get("title") or "New conversation",
+        messages=session.get("messages") or [],
+    )
 
 @app.get("/api/profiles", response_model=list[ProfileSummaryResponse])
 def get_profiles() -> list[ProfileSummaryResponse]:
@@ -202,3 +285,17 @@ def get_profile_id(header_profile_id: str | None) -> UUID:
         return UUID(profile_id)
     except ValueError as error:
         raise HTTPException(400, "Profile ID must be a valid UUID") from error
+
+
+def get_session_id(header_session_id: str) -> UUID:
+    try:
+        return UUID(header_session_id)
+    except ValueError as error:
+        raise HTTPException(400, "Session ID must be a valid UUID") from error
+
+
+def create_session_title(prompt: str) -> str:
+    title = " ".join(prompt.split())
+    if not title:
+        return "New conversation"
+    return title[:57] + "..." if len(title) > 60 else title

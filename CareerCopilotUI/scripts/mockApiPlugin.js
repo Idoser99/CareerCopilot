@@ -96,6 +96,42 @@ const calendarEvents = [
   },
 ];
 
+let sessionCounter = 3;
+const agentSessions = [
+  {
+    id: "b1111111-1111-4111-8111-111111111111",
+    profile_id: PRIMARY_PROFILE_ID,
+    title: "Prepare for the Acme interview",
+    messages: [
+      {
+        role: "user",
+        content: "Help me prepare for my next interview.",
+      },
+      {
+        role: "assistant",
+        content:
+          "## Acme interview preparation\n\nFocus on these areas:\n\n- Prepare two **FastAPI** project examples\n- Review Python async patterns\n- Bring one question about the backend team",
+      },
+    ],
+  },
+  {
+    id: "b2222222-2222-4222-8222-222222222222",
+    profile_id: PRIMARY_PROFILE_ID,
+    title: "Review my applications",
+    messages: [
+      {
+        role: "user",
+        content: "Give me a quick update on my applications.",
+      },
+      {
+        role: "assistant",
+        content:
+          "You have **three active applications**. Nova Labs is already scheduled, Acme is pending, and Vector sent a rejection.",
+      },
+    ],
+  },
+];
+
 function sendJson(response, status, data) {
   response.statusCode = status;
   response.setHeader("Content-Type", "application/json");
@@ -104,6 +140,40 @@ function sendJson(response, status, data) {
 
 function activeProfile(request) {
   return request.headers["x-profile-id"] || PRIMARY_PROFILE_ID;
+}
+
+function readJson(request) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
+function createMockSession(profileId) {
+  const number = String(sessionCounter++).padStart(8, "0");
+  const session = {
+    id: `${number}-3333-4333-8333-333333333333`,
+    profile_id: profileId,
+    title: "New conversation",
+    messages: [],
+  };
+  agentSessions.unshift(session);
+  return session;
+}
+
+function titleFromPrompt(prompt) {
+  const title = String(prompt || "").trim().replace(/\s+/g, " ");
+  return title.length > 42 ? `${title.slice(0, 39)}…` : title || "New conversation";
 }
 
 export function careerCopilotMock() {
@@ -164,17 +234,90 @@ export function careerCopilotMock() {
           return;
         }
 
-        if (url.pathname === "/api/execute" && request.method === "POST") {
+        if (url.pathname === "/api/sessions" && request.method === "GET") {
+          sendJson(
+            response,
+            200,
+            agentSessions
+              .filter((session) => session.profile_id === profileId)
+              .map(({ id, title }) => ({ id, title })),
+          );
+          return;
+        }
+
+        if (url.pathname === "/api/sessions" && request.method === "POST") {
+          const { id, title } = createMockSession(profileId);
+          sendJson(response, 200, { id, title });
+          return;
+        }
+
+        const sessionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)$/);
+        if (sessionMatch && request.method === "GET") {
+          const session = agentSessions.find(
+            (candidate) =>
+              candidate.id === decodeURIComponent(sessionMatch[1]) &&
+              candidate.profile_id === profileId,
+          );
+          if (!session) {
+            sendJson(response, 404, { detail: "Agent session not found" });
+            return;
+          }
           sendJson(response, 200, {
-            status: "ok",
-            error: null,
-            response:
-              "## Application plan\n\n- Tailor your CV for **Acme**\n- Prepare two FastAPI examples\n- Follow up on Friday",
-            steps: [
-              { module: "Job Search", prompt: {}, response: {} },
-              { module: "CV Tailoring", prompt: {}, response: {} },
-            ],
+            id: session.id,
+            title: session.title,
+            messages: session.messages,
           });
+          return;
+        }
+
+        if (url.pathname === "/api/execute" && request.method === "POST") {
+          readJson(request)
+            .then(({ prompt }) => {
+              const shouldTrack = request.headers["x-track-session"] === "true";
+              const requestedSessionId = request.headers["x-session-id"];
+              let session = requestedSessionId
+                ? agentSessions.find(
+                    (candidate) =>
+                      candidate.id === requestedSessionId && candidate.profile_id === profileId,
+                  )
+                : null;
+
+              if (shouldTrack && !session) {
+                session = createMockSession(profileId);
+              }
+
+              const agentResponse =
+                "## Application plan\n\n- Tailor your CV for **Acme**\n- Prepare two FastAPI examples\n- Follow up on Friday";
+
+              if (shouldTrack && session) {
+                if (session.messages.length === 0) {
+                  session.title = titleFromPrompt(prompt);
+                }
+                session.messages.push(
+                  { role: "user", content: prompt },
+                  { role: "assistant", content: agentResponse },
+                );
+                const index = agentSessions.indexOf(session);
+                agentSessions.splice(index, 1);
+                agentSessions.unshift(session);
+              }
+
+              if (session) {
+                response.setHeader("X-Session-Id", session.id);
+              }
+              sendJson(response, 200, {
+                status: "ok",
+                error: null,
+                response: agentResponse,
+                steps: [
+                  { module: "Job Search", prompt: {}, response: {} },
+                  { module: "CV Tailoring", prompt: {}, response: {} },
+                ],
+              });
+            })
+            .catch(() => {
+              sendJson(response, 400, { detail: "Invalid JSON body" });
+            });
           return;
         }
 

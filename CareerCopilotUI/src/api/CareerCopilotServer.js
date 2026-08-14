@@ -48,12 +48,29 @@ export class CareerCopilotServer {
     });
   }
 
-  execute(prompt, { signal } = {}) {
+  execute(prompt, { sessionId = null, trackSession = false, signal } = {}) {
     return this.#request("/execute", {
       method: "POST",
       body: { prompt },
+      extraHeaders: {
+        "X-Track-Session": String(trackSession),
+        ...(sessionId ? { "X-Session-Id": sessionId } : {}),
+      },
+      includeSessionId: true,
       signal,
     });
+  }
+
+  getAgentSessions({ signal } = {}) {
+    return this.#request("/sessions", { signal });
+  }
+
+  createAgentSession({ signal } = {}) {
+    return this.#request("/sessions", { method: "POST", signal });
+  }
+
+  getAgentSession(sessionId, { signal } = {}) {
+    return this.#request(`/sessions/${encodeURIComponent(sessionId)}`, { signal });
   }
 
   getApplications(status = null, { signal } = {}) {
@@ -73,7 +90,15 @@ export class CareerCopilotServer {
 
   async #request(
     path,
-    { method = "GET", body, query, responseType = "json", signal } = {},
+    {
+      method = "GET",
+      body,
+      query,
+      responseType = "json",
+      extraHeaders = {},
+      includeSessionId = false,
+      signal,
+    } = {},
   ) {
     const url = this.#createUrl(path, query);
     const headers = {
@@ -87,6 +112,7 @@ export class CareerCopilotServer {
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
     }
+    Object.assign(headers, extraHeaders);
 
     let response;
     try {
@@ -132,6 +158,13 @@ export class CareerCopilotServer {
       return {
         blob: data,
         filename: encodedFilename ? decodeURIComponent(encodedFilename) : "cv.docx",
+      };
+    }
+
+    if (includeSessionId && typeof data === "object" && data !== null) {
+      return {
+        ...data,
+        session_id: response.headers.get("X-Session-Id"),
       };
     }
 

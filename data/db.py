@@ -62,6 +62,72 @@ class Database:
             raise HTTPException(404, "Profile not found")
         return profiles[0]
 
+    def get_agent_sessions(self, profile_id: UUID) -> list[dict]:
+        return _execute(
+            self._get_client()
+            .table("agent_sessions")
+            .select("id,profile_id,title,messages,created_at,updated_at")
+            .eq("profile_id", str(profile_id))
+            .order("updated_at", desc=True)
+        )
+
+    def get_agent_session(self, profile_id: UUID, session_id: UUID) -> dict:
+        sessions = _execute(
+            self._get_client()
+            .table("agent_sessions")
+            .select("id,profile_id,title,messages,created_at,updated_at")
+            .eq("id", str(session_id))
+            .eq("profile_id", str(profile_id))
+            .limit(1)
+        )
+        if not sessions:
+            raise HTTPException(404, "Agent session not found")
+        return sessions[0]
+
+    def create_agent_session(
+        self,
+        profile_id: UUID,
+        messages: dict | list[dict],
+        title: str = "New conversation",
+    ) -> dict:
+        new_messages = messages if isinstance(messages, list) else [messages]
+        sessions = _execute(
+            self._get_client()
+            .table("agent_sessions")
+            .insert({
+                "profile_id": str(profile_id),
+                "title": title,
+                "messages": new_messages,
+            })
+        )
+        return sessions[0]
+
+    def update_agent_session(
+        self,
+        profile_id: UUID,
+        session_id: UUID,
+        messages: dict | list[dict],
+        title: str | None = None,
+    ) -> dict:
+        new_messages = messages if isinstance(messages, list) else [messages]
+        values = {
+            "messages": new_messages,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if title is not None:
+            values["title"] = title
+
+        sessions = _execute(
+            self._get_client()
+            .table("agent_sessions")
+            .update(values)
+            .eq("id", str(session_id))
+            .eq("profile_id", str(profile_id))
+        )
+        if not sessions:
+            raise HTTPException(404, "Agent session not found")
+        return sessions[0]
+
     def get_applications(self, profile_id: UUID) -> list[dict]:
         return _execute(
             self._get_client()
