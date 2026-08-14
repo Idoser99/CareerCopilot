@@ -68,6 +68,31 @@ class Database:
             raise HTTPException(404, "Profile not found")
         return profiles[0]
 
+    def list_notifications(self, profile_id: UUID) -> list[dict]:
+        return _execute(
+            self._get_client()
+            .table("notifications")
+            .select("id,profile_id,title,message,is_read,created_at")
+            .eq("profile_id", str(profile_id))
+            .order("created_at", desc=True)
+        )
+
+    def mark_notification_as_read(
+        self,
+        profile_id: UUID,
+        notification_id: UUID,
+    ) -> dict:
+        notifications = _execute(
+            self._get_client()
+            .table("notifications")
+            .update({"is_read": True})
+            .eq("id", str(notification_id))
+            .eq("profile_id", str(profile_id))
+        )
+        if not notifications:
+            raise HTTPException(404, "Notification not found")
+        return notifications[0]
+
     def get_agent_sessions(self, profile_id: UUID) -> list[dict]:
         return _execute(
             self._get_client()
