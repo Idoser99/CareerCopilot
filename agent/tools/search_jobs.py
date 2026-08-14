@@ -8,7 +8,7 @@ from agent.tools.base_tool import BaseTool
 from pydantic import BaseModel, Field
 
 from agent.tools.tool_response import ToolResponse
-from api.db import database as db
+from data.db import database as db
 
 RETRIEVABLE_FIELDS = {
     "company.industry": ("company", "industry"),

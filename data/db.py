@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import HTTPException
 from supabase import Client, create_client
 
-from api.jobs_db import JobsDatabase
+from data.jobs_db import JobsDatabase
 
 
 load_dotenv()

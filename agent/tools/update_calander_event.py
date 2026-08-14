@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from agent.tools.base_tool import BaseTool
 from agent.tools.tool_response import ToolResponse
-from api.db import database as db
+from data.db import database as db
 
 
 class UpdateCalanderEventInput(BaseModel):
