@@ -6,6 +6,7 @@ from langchain_core.messages import (
     ToolMessage,
 )
 import json
+import os
 
 
 class AgentSession:
@@ -13,7 +14,8 @@ class AgentSession:
 
     def __init__(self, history: list[dict] | None = None):
         self.messages: [BaseMessage] = []
-        self.add_system_message(CAREER_COPILOT_SYSTEM_PROMPT)
+        timezone = os.getenv("CAREER_COPILOT_TIMEZONE", "UTC")
+        self.add_system_message(f"{CAREER_COPILOT_SYSTEM_PROMPT}\n\nThe user's timezone is {timezone}.")
         for message in history or []:
             role = message.get("role")
             content = message.get("content")
