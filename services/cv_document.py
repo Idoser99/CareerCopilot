@@ -1,31 +1,26 @@
-"""LangChain tool for writing final CV content to an ATS-friendly DOCX."""
+"""Create an ATS-friendly DOCX from CV content."""
 
-import os
 import re
+from io import BytesIO
 from pathlib import Path
-from typing import Annotated, Any, Literal, Type
-from uuid import uuid4
+from typing import Annotated, Any, Literal, Mapping
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     StringConstraints,
-    ValidationError,
     field_validator,
     model_validator,
 )
 
-from agent.tools.base_tool import BaseTool
-from agent.tools.cv_docx_renderer import (
+from services.cv_docx_renderer import (
     STANDARD_SECTION_TITLES,
     render_cv_docx,
     verify_generated_docx,
 )
-from agent.tools.tool_response import ToolResponse
 
 
-OUTPUT_DIRECTORY = Path(__file__).resolve().parents[2] / "generated_cvs"
 DEFAULT_SECTION_ORDER = [
     "professional_summary",
     "education",
@@ -206,21 +201,6 @@ class WriteCVInput(CVModel):
     document_preferences: DocumentPreferences = Field(
         default_factory=DocumentPreferences
     )
-    overwrite_existing: bool = Field(default=False)
-
-
-class WriteCVError(CVModel):
-    field: str
-    message: str
-
-
-class WriteCVResult(CVModel):
-    status: Literal["success", "error"]
-    filename: str | None = None
-    file_path: str | None = None
-    sections_written: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    errors: list[WriteCVError] = Field(default_factory=list)
 
 
 class CVWriteError(Exception):
@@ -252,44 +232,6 @@ def _sanitize_filename(output_filename: str) -> str:
         raise CVWriteError("output_filename", "output_filename is reserved by the system")
 
     return f"{sanitized_stem}.docx"
-
-
-def _prepare_output_paths(
-    safe_filename: str, overwrite_existing: bool
-) -> tuple[Path, Path]:
-    OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
-    output_directory = OUTPUT_DIRECTORY.resolve()
-    final_path = (output_directory / safe_filename).resolve()
-    if final_path.parent != output_directory:
-        raise CVWriteError("output_filename", "Resolved output path is unsafe")
-    if final_path.exists() and not overwrite_existing:
-        raise CVWriteError(
-            "overwrite_existing",
-            f"{safe_filename} already exists and overwrite_existing is false",
-        )
-
-    temporary_path = output_directory / (
-        f".{final_path.stem}.{uuid4().hex}.temporary.docx"
-    )
-    return final_path, temporary_path
-
-
-def _publish_document(
-    temporary_path: Path,
-    final_path: Path,
-    overwrite_existing: bool,
-) -> None:
-    if overwrite_existing:
-        temporary_path.replace(final_path)
-        return
-
-    try:
-        os.link(temporary_path, final_path)
-    except FileExistsError as error:
-        raise CVWriteError(
-            "overwrite_existing",
-            f"{final_path.name} already exists and overwrite_existing is false",
-        ) from error
 
 
 def _collect_available_sections(payload: WriteCVInput) -> dict[str, Any]:
@@ -381,92 +323,155 @@ def _resolve_section_order(
     return ordered, warnings
 
 
-def _validation_errors(error: ValidationError) -> list[WriteCVError]:
-    errors = []
-    for detail in error.errors():
-        field = ".".join(str(part) for part in detail["loc"]) or "input"
-        errors.append(WriteCVError(field=field, message=detail["msg"]))
-    return errors
-
-
-def _error_response(filename: Any, errors: list[WriteCVError]) -> ToolResponse:
-    response_filename = filename if isinstance(filename, str) else None
-    result = WriteCVResult(
-        status="error", filename=response_filename, errors=errors
+def _is_section_heading(line: str) -> bool:
+    letters = [character for character in line if character.isalpha()]
+    return (
+        bool(letters)
+        and len(line) <= 60
+        and line == line.upper()
+        and not line.startswith(("-", "*", "•"))
     )
-    return ToolResponse(content=result.model_dump(mode="json"))
 
 
-class WriteCV(BaseTool):
-    name: str = "write_cv"
-    description: str = (
-        "Create an ATS-friendly DOCX from complete, final CV content. Provide "
-        "output_filename, contact, and professional_summary. Supply every entry "
-        "and bullet in its exact intended display order; dated entries should "
-        "normally already be reverse chronological because this tool does not "
-        "sort them. The tool also does not tailor, rewrite, improve, rank, or "
-        "verify the supplied content. Use section_order when a specific section "
-        "order is required."
+def _split_cv_text(cv_text: str) -> tuple[list[str], list[tuple[str, list[str]]]]:
+    preamble: list[str] = []
+    sections: list[tuple[str, list[str]]] = []
+    current_lines: list[str] | None = None
+
+    for raw_line in cv_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if _is_section_heading(line):
+            current_lines = []
+            sections.append((line.title(), current_lines))
+        elif current_lines is None:
+            preamble.append(line)
+        else:
+            current_lines.append(line)
+
+    return preamble, sections
+
+
+def _build_contact(
+    profile: Mapping[str, Any],
+    preamble: list[str],
+) -> tuple[ContactInformation, list[str]]:
+    remaining = list(preamble)
+    full_name = str(profile["name"])
+    if remaining and "@" not in remaining[0] and len(remaining[0].split()) <= 6:
+        full_name = remaining.pop(0)
+
+    contact: dict[str, str | None] = {
+        "full_name": full_name,
+        "email": str(profile["email"]),
+        "location": None,
+        "phone": None,
+        "linkedin": None,
+        "github": None,
+        "portfolio": None,
+    }
+    headline: list[str] = []
+    for line in remaining:
+        for value in (part.strip() for part in line.split("|")):
+            lower_value = value.lower()
+            if "@" in value:
+                contact["email"] = value
+            elif "linkedin" in lower_value:
+                contact["linkedin"] = value
+            elif "github" in lower_value:
+                contact["github"] = value
+            elif value.startswith(("http://", "https://")):
+                contact["portfolio"] = value
+            elif re.search(r"\+?\d[\d\s().-]{6,}", value):
+                contact["phone"] = value
+            elif contact["location"] is None and "," in value:
+                contact["location"] = value
+            else:
+                headline.append(value)
+
+    return ContactInformation.model_validate(contact), headline
+
+
+def _build_custom_blocks(lines: list[str]) -> list[CustomContentBlock]:
+    blocks: list[CustomContentBlock] = []
+    bullets: list[str] = []
+
+    def flush_bullets() -> None:
+        if bullets:
+            blocks.append(
+                CustomContentBlock(block_type="bullet_list", bullets=list(bullets))
+            )
+            bullets.clear()
+
+    for line in lines:
+        if line.startswith(("- ", "* ", "• ")):
+            bullets.append(line[2:].strip())
+        else:
+            flush_bullets()
+            blocks.append(CustomContentBlock(block_type="paragraph", text=line))
+    flush_bullets()
+    return blocks
+
+
+def _build_profile_payload(profile: Mapping[str, Any]) -> WriteCVInput:
+    cv_text = str(profile.get("cv_text") or "").strip()
+    if not cv_text:
+        raise CVWriteError("cv_text", "No CV was found for this profile")
+
+    preamble, parsed_sections = _split_cv_text(cv_text)
+    contact, headline = _build_contact(profile, preamble)
+
+    summary_titles = {"Professional Summary", "Profile Summary", "Summary"}
+    summary_lines: list[str] = []
+    remaining_sections: list[tuple[str, list[str]]] = []
+    for title, lines in parsed_sections:
+        if title in summary_titles and not summary_lines:
+            summary_lines = lines
+        else:
+            remaining_sections.append((title, lines))
+
+    if summary_lines:
+        professional_summary = "\n".join([*headline, *summary_lines])
+    elif headline:
+        professional_summary = "\n".join(headline)
+    else:
+        professional_summary = cv_text
+        remaining_sections = []
+
+    custom_sections = [
+        CustomSection(
+            section_id=f"custom_{index}",
+            title=title,
+            blocks=_build_custom_blocks(lines),
+        )
+        for index, (title, lines) in enumerate(remaining_sections, start=1)
+        if lines
+    ]
+    section_order = [
+        "professional_summary",
+        *(section.section_id for section in custom_sections),
+    ]
+
+    return WriteCVInput(
+        output_filename=f"{contact.full_name}_CV.docx",
+        contact=contact,
+        professional_summary=professional_summary,
+        custom_sections=custom_sections,
+        section_order=section_order,
     )
-    args_schema: Type[BaseModel] = WriteCVInput
 
-    def invoke(self, input: Any, config: Any = None, **kwargs: Any) -> Any:
-        """Keep Pydantic input failures inside the tool's response contract."""
-        try:
-            return super().invoke(input, config=config, **kwargs)
-        except ValidationError as error:
-            requested_filename = (
-                input.get("output_filename") if isinstance(input, dict) else None
-            )
-            return _error_response(requested_filename, _validation_errors(error))
 
-    def _run(self, **kwargs) -> ToolResponse:
-        temporary_path: Path | None = None
-        requested_filename = kwargs.get("output_filename")
-        safe_filename: str | None = None
+def create_profile_cv_docx(profile: Mapping[str, Any]) -> tuple[BytesIO, str]:
+    payload = _build_profile_payload(profile)
+    filename = _sanitize_filename(payload.output_filename)
+    available_sections = _collect_available_sections(payload)
+    ordered_sections, _ = _resolve_section_order(payload, available_sections)
+    payload_data = payload.model_dump(mode="json")
 
-        try:
-            payload = WriteCVInput.model_validate(kwargs)
-            safe_filename = _sanitize_filename(payload.output_filename)
-            available_sections = _collect_available_sections(payload)
-            ordered_sections, warnings = _resolve_section_order(
-                payload, available_sections
-            )
-            final_path, temporary_path = _prepare_output_paths(
-                safe_filename, payload.overwrite_existing
-            )
-
-            payload_data = payload.model_dump(mode="json")
-            render_cv_docx(payload_data, ordered_sections, temporary_path)
-            verify_generated_docx(temporary_path, payload_data, ordered_sections)
-            _publish_document(
-                temporary_path,
-                final_path,
-                payload.overwrite_existing,
-            )
-            temporary_path.unlink(missing_ok=True)
-            temporary_path = None
-
-            result = WriteCVResult(
-                status="success",
-                filename=safe_filename,
-                file_path=str(final_path),
-                sections_written=ordered_sections,
-                warnings=warnings,
-            )
-            return ToolResponse(content=result.model_dump(mode="json"))
-        except ValidationError as error:
-            return _error_response(requested_filename, _validation_errors(error))
-        except CVWriteError as error:
-            return _error_response(
-                safe_filename or requested_filename,
-                [WriteCVError(field=error.field, message=error.message)],
-            )
-        except Exception as error:
-            return _error_response(
-                safe_filename or requested_filename,
-                [WriteCVError(field="rendering", message=str(error))],
-            )
-        finally:
-            if temporary_path is not None:
-                temporary_path.unlink(missing_ok=True)
+    output = BytesIO()
+    render_cv_docx(payload_data, ordered_sections, output)
+    output.seek(0)
+    verify_generated_docx(output, payload_data, ordered_sections)
+    output.seek(0)
+    return output, filename

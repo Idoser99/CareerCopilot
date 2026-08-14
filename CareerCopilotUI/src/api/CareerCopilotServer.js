@@ -7,6 +7,9 @@ export class CareerCopilotApiError extends Error {
   }
 }
 
+const DOCX_MEDIA_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 export class CareerCopilotServer {
   constructor({ baseUrl = "/api", fetchImpl = globalThis.fetch } = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
@@ -38,6 +41,13 @@ export class CareerCopilotServer {
     });
   }
 
+  downloadCv({ signal } = {}) {
+    return this.#request("/profile/cv/download", {
+      responseType: "blob",
+      signal,
+    });
+  }
+
   execute(prompt, { signal } = {}) {
     return this.#request("/execute", {
       method: "POST",
@@ -61,9 +71,14 @@ export class CareerCopilotServer {
     return this.#request("/calendar", { signal });
   }
 
-  async #request(path, { method = "GET", body, query, signal } = {}) {
+  async #request(
+    path,
+    { method = "GET", body, query, responseType = "json", signal } = {},
+  ) {
     const url = this.#createUrl(path, query);
-    const headers = { Accept: "application/json" };
+    const headers = {
+      Accept: responseType === "blob" ? DOCX_MEDIA_TYPE : "application/json",
+    };
 
     if (this.profileId) {
       headers["X-Profile-Id"] = this.profileId;
@@ -93,9 +108,11 @@ export class CareerCopilotServer {
     }
 
     const contentType = response.headers.get("content-type") || "";
-    const data = contentType.includes("application/json")
-      ? await response.json()
-      : await response.text();
+    const data = response.ok && responseType === "blob"
+      ? await response.blob()
+      : contentType.includes("application/json")
+        ? await response.json()
+        : await response.text();
 
     if (!response.ok) {
       const serverMessage =
@@ -107,6 +124,15 @@ export class CareerCopilotServer {
         serverMessage || `Request failed with status ${response.status}.`,
         { status: response.status, details: data },
       );
+    }
+
+    if (responseType === "blob") {
+      const disposition = response.headers.get("content-disposition") || "";
+      const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+      return {
+        blob: data,
+        filename: encodedFilename ? decodeURIComponent(encodedFilename) : "cv.docx",
+      };
     }
 
     return data;
