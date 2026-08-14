@@ -4,7 +4,6 @@ from agent.tools.base_tool import BaseTool
 from agent.tools.get_profile_cv import GetProfileCV
 from agent.tools.preparation_plan import PreparationPlan
 from agent.tools.skill_gap_analyzer import SkillGapAnalyzer
-from agent.tools.write_cv import WriteCV
 from agent.tools.list_applications import ListApplications
 from agent.tools.list_calander_events import ListCalanderEvents
 from agent.tools.list_emails import ListEmails
@@ -35,7 +34,6 @@ def create_registry(profile_id: UUID) -> ToolRegistry:
         GetProfileCV(profile_id=profile_id),
         PreparationPlan(profile_id=profile_id),
         SkillGapAnalyzer(profile_id=profile_id),
-        WriteCV(profile_id=profile_id),
         ListApplications(profile_id=profile_id),
         ListCalanderEvents(profile_id=profile_id),
         ListEmails(profile_id=profile_id),

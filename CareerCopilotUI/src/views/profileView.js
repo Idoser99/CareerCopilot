@@ -6,6 +6,25 @@ import {
   renderLoading,
 } from "../ui/sharedComponents.js";
 
+const DOCX_MEDIA_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+function suggestedCvFilename(name) {
+  const safeName = name.replace(/[<>:"/\\|?*]/g, "_").trim() || "CV";
+  return `${safeName}_CV.docx`;
+}
+
+function triggerBrowserDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 export async function renderProfileView(container, { server, signal }) {
   container.innerHTML = `
     <section class="page-heading">
@@ -83,7 +102,15 @@ export async function renderProfileView(container, { server, signal }) {
         <div class="cv-preview-block">
           <div class="section-label-row">
             <span>Text preview</span>
-            <span id="cv-character-count">${hasCv ? `${profile.cv_text.length.toLocaleString()} characters` : ""}</span>
+            <div class="cv-preview-actions">
+              <span id="cv-character-count" class="cv-character-count">${hasCv ? `${profile.cv_text.length.toLocaleString()} characters` : ""}</span>
+              <button
+                id="cv-download-button"
+                class="button button--small button--secondary"
+                type="button"
+                ${hasCv ? "" : "disabled"}
+              >Download DOCX</button>
+            </div>
           </div>
           <pre id="cv-preview" class="cv-preview ${hasCv ? "" : "cv-preview--empty"}">${
             hasCv
@@ -101,6 +128,7 @@ export async function renderProfileView(container, { server, signal }) {
   const preview = container.querySelector("#cv-preview");
   const characterCount = container.querySelector("#cv-character-count");
   const badge = container.querySelector("#cv-state-badge");
+  const downloadButton = container.querySelector("#cv-download-button");
 
   async function processFile(file) {
     if (!file) return;
@@ -124,6 +152,7 @@ export async function renderProfileView(container, { server, signal }) {
 
       badge.className = "badge badge--success";
       badge.textContent = "Text saved";
+      downloadButton.disabled = false;
       status.className = "inline-message inline-message--success";
       status.textContent = `${file.name} was processed. Only its extracted text was sent.`;
     } catch (error) {
@@ -155,5 +184,53 @@ export async function renderProfileView(container, { server, signal }) {
 
   dropzone.addEventListener("drop", (event) => {
     processFile(event.dataTransfer?.files?.[0]);
+  });
+
+  downloadButton.addEventListener("click", async () => {
+    let fileHandle = null;
+
+    try {
+      if ("showSaveFilePicker" in window) {
+        fileHandle = await window.showSaveFilePicker({
+          suggestedName: suggestedCvFilename(profile.name),
+          types: [{
+            description: "Word document",
+            accept: { [DOCX_MEDIA_TYPE]: [".docx"] },
+          }],
+        });
+      }
+
+      downloadButton.disabled = true;
+      downloadButton.textContent = "Preparing…";
+      status.className = "inline-message inline-message--working";
+      status.textContent = "Preparing your DOCX…";
+
+      const { blob, filename } = await server.downloadCv({ signal });
+      if (signal.aborted) return;
+
+      if (fileHandle) {
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        triggerBrowserDownload(blob, filename);
+      }
+
+      status.className = "inline-message inline-message--success";
+      status.textContent = `${filename} was downloaded.`;
+    } catch (error) {
+      if (error.name === "AbortError") {
+        if (!signal.aborted) {
+          status.className = "inline-message";
+          status.textContent = "Download cancelled.";
+        }
+        return;
+      }
+      status.className = "inline-message inline-message--error";
+      status.textContent = error.message;
+    } finally {
+      downloadButton.disabled = !preview.textContent.trim();
+      downloadButton.textContent = "Download DOCX";
+    }
   });
 }

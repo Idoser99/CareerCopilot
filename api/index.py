@@ -1,8 +1,9 @@
 from typing import Annotated
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 import os
@@ -26,6 +27,7 @@ from api.schemas import (
 )
 from agent.registry import create_registry
 from agent.agent import Agent
+from services.cv_document import CVWriteError, create_profile_cv_docx
 
 load_dotenv()
 
@@ -174,6 +176,24 @@ def upload_cv(
 ) -> ProfileResponse:
     profile_id = get_profile_id(header_profile_id)
     return ProfileResponse(**db.set_profile_cv(profile_id, request.cv_text))
+
+
+@app.get("/api/profile/cv/download")
+def download_cv(
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> Response:
+    profile_id = get_profile_id(header_profile_id)
+    profile = db.get_profile(profile_id)
+    try:
+        document, filename = create_profile_cv_docx(profile)
+    except CVWriteError as error:
+        raise HTTPException(404, error.message) from error
+
+    return Response(
+        content=document.getvalue(),
+        media_type=("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        headers={"Content-Disposition": (f"attachment; filename*=UTF-8''{quote(filename)}")}
+    )
 
 
 def get_profile_id(header_profile_id: str | None) -> UUID:

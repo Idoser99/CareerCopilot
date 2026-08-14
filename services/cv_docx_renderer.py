@@ -1,7 +1,7 @@
-"""ATS-friendly DOCX rendering helpers for the CV writer tool."""
+"""ATS-friendly DOCX rendering helpers."""
 
 from pathlib import Path
-from typing import Any, Mapping, Sequence, cast
+from typing import Any, BinaryIO, Mapping, Sequence, cast
 
 from docx import Document
 from docx.document import Document as DocumentType
@@ -315,7 +315,7 @@ def _render_section(
 def render_cv_docx(
     payload: Mapping[str, Any],
     ordered_section_ids: Sequence[str],
-    output_path: Path,
+    output_path: Path | BinaryIO,
 ) -> None:
     """Construct and save an ATS-friendly CV without changing supplied content."""
     document = _create_document(payload["document_preferences"])
@@ -327,16 +327,18 @@ def render_cv_docx(
 
     document.core_properties.title = f"{payload['contact']['full_name']} CV"
     document.core_properties.subject = "Curriculum Vitae"
-    document.save(str(output_path))
+    document.save(str(output_path) if isinstance(output_path, Path) else output_path)
 
 
 def verify_generated_docx(
-    output_path: Path,
+    output_path: Path | BinaryIO,
     payload: Mapping[str, Any],
     ordered_section_ids: Sequence[str],
 ) -> None:
     """Reopen a generated file and verify its essential document structure."""
-    document = Document(str(output_path))
+    document = Document(
+        str(output_path) if isinstance(output_path, Path) else output_path
+    )
     paragraph_texts = [paragraph.text for paragraph in document.paragraphs]
 
     if len(document.sections) != 1:

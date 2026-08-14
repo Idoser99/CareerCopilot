@@ -137,7 +137,13 @@
   margin-bottom: 7px;
 }
 
-.section-label-row span:last-child {
+.cv-preview-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.cv-character-count {
   font-weight: 600;
   letter-spacing: normal;
   text-transform: none;
