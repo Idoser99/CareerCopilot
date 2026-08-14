@@ -13,9 +13,9 @@ class Agent:
         self.tools_registry = registry
         self.max_iterations = max_iterations
 
-    def invoke(self, prompt: str) -> AgentResponse:
-        # initializing the agent session
-        session = AgentSession()
+    def invoke(self, prompt: str, session: AgentSession | None = None) -> AgentResponse:
+        # initializing a new session only wasn't supplied
+        session = session or AgentSession()
         session.add_user_message(prompt)
 
         # initializing steps list
