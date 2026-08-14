@@ -8,7 +8,7 @@ from api.schemas import ExecutionStep
 
 
 class Agent:
-    def __init__(self, llm: ChatOpenAI, registry: ToolRegistry, max_iterations: int = 5):
+    def __init__(self, llm: ChatOpenAI, registry: ToolRegistry, max_iterations: int = 7):
         self.llm = llm.bind_tools(registry.get_all())
         self.tools_registry = registry
         self.max_iterations = max_iterations

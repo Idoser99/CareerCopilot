@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Type
+from typing import Literal, Type
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -22,11 +22,17 @@ class UpdateCalanderEventInput(BaseModel):
     )
     title: str | None = Field(default=None, description="new event title")
     description: str | None = Field(default=None, description="new event description")
+    status: Literal["scheduled", "cancelled", "completed"] | None = Field(
+        default=None,
+        description="new event status, including cancellation or completion",
+    )
 
 
 class UpdateCalanderEvent(BaseTool):
     name: str = "update_calander_event"
-    description: str = "reschedules or edits an existing calendar event"
+    description: str = (
+        "reschedules, edits, cancels, or completes an existing calendar event"
+    )
     args_schema: Type[BaseModel] = UpdateCalanderEventInput
 
     def _run(
@@ -36,12 +42,13 @@ class UpdateCalanderEvent(BaseTool):
         duration_minutes: int | None = None,
         title: str | None = None,
         description: str | None = None,
+        status: str | None = None,
     ) -> ToolResponse:
         if starts_at is not None and starts_at.tzinfo is None:
             raise ValueError("starts_at must include a timezone")
         if all(
             value is None
-            for value in (starts_at, duration_minutes, title, description)
+            for value in (starts_at, duration_minutes, title, description, status)
         ):
             raise ValueError("at least one field must be provided")
 
@@ -52,5 +59,6 @@ class UpdateCalanderEvent(BaseTool):
             duration_minutes=duration_minutes,
             title=title,
             description=description,
+            status=status,
         )
         return ToolResponse(content=event)

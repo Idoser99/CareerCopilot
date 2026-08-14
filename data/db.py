@@ -11,6 +11,12 @@ from data.jobs_db import JobsDatabase
 
 load_dotenv()
 
+APPLICATION_STATUSES = {
+    "draft", "pending", "accepted", "rejected", "withdrawn", "scheduled"
+}
+CALENDAR_EVENT_TYPES = {"interview", "preparation"}
+CALENDAR_EVENT_STATUSES = {"scheduled", "cancelled", "completed"}
+
 
 def _execute(query) -> list[dict]:
     try:
@@ -215,6 +221,8 @@ class Database:
         application_id: UUID,
         status: str,
     ) -> dict:
+        if status not in APPLICATION_STATUSES:
+            raise ValueError(f"Unsupported application status: {status}")
         values = {"status": status}
         if status == "pending":
             values["submitted_at"] = datetime.now(timezone.utc).isoformat()
@@ -315,6 +323,8 @@ class Database:
         starts_at: datetime,
         ends_at: datetime,
     ) -> dict:
+        if event_type not in CALENDAR_EVENT_TYPES:
+            raise ValueError(f"Unsupported calendar event type: {event_type}")
         applications = _execute(
             self._get_client()
             .table("applications")
@@ -349,7 +359,10 @@ class Database:
         duration_minutes: int | None = None,
         title: str | None = None,
         description: str | None = None,
+        status: str | None = None,
     ) -> dict:
+        if status is not None and status not in CALENDAR_EVENT_STATUSES:
+            raise ValueError(f"Unsupported calendar event status: {status}")
         events = _execute(
             self._get_client()
             .table("calendar_events")
@@ -383,6 +396,8 @@ class Database:
             values["title"] = title
         if description is not None:
             values["description"] = description
+        if status is not None:
+            values["status"] = status
 
         updated_events = _execute(
             self._get_client()

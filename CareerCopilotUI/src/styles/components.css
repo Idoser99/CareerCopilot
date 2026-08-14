@@ -222,6 +222,7 @@
 
 .badge--neutral,
 .status-draft,
+.status-withdrawn,
 .status-cancelled {
   color: var(--color-text-soft);
   background: #eef3f6;
