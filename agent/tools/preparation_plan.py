@@ -17,6 +17,7 @@ from pydantic import (
 
 from agent.tools.base_tool import BaseTool
 from agent.tools.tool_response import ToolResponse
+from data.db import database as db
 from api.schemas import ExecutionStep
 
 
@@ -34,6 +35,33 @@ class PreparationPlanModel(BaseModel):
 
 
 class PreparationPlanInput(PreparationPlanModel):
+    job_id: NonEmptyText = Field(description="ID of the target job")
+    skill_gap_analysis: dict[str, Any] = Field(
+        min_length=1,
+        description="Non-empty result returned by skill_gap_analyzer",
+    )
+    preparation_time: int = Field(
+        gt=0,
+        description="Number of days or weeks available for preparation",
+    )
+    preparation_time_unit: PreparationTimeUnit = Field(
+        description="Unit for preparation_time: days or weeks"
+    )
+    company_summary: NonEmptyText | None = Field(
+        default=None,
+        description=(
+            "Optional company summary, for example output from a company "
+            "research tool"
+        ),
+    )
+    hours_available_per_day: float = Field(
+        default=4,
+        gt=0,
+        description="Average preparation hours available per day; defaults to 4",
+    )
+
+
+class PreparationPlanContext(PreparationPlanModel):
     job_description: NonEmptyText = Field(
         description="Full description of the target job"
     )
@@ -122,7 +150,7 @@ def _calculate_preparation_days(
     return preparation_time
 
 
-def _build_context(payload: PreparationPlanInput) -> dict[str, Any]:
+def _build_context(payload: PreparationPlanContext) -> dict[str, Any]:
     preparation_days = _calculate_preparation_days(
         payload.preparation_time,
         payload.preparation_time_unit,
@@ -168,8 +196,8 @@ class PreparationPlan(BaseTool):
     name: str = "preparation_plan"
     description: str = (
         "Create a personalized, realistic, time-aware preparation plan for a "
-        "specific job using its description, a skill-gap analysis, the available "
-        "preparation time, and optional company or candidate context."
+        "job selected by job ID, using a skill-gap analysis, the application's "
+        "tailored CV, the original profile CV, and the available preparation time."
     )
     args_schema: Type[BaseModel] = PreparationPlanInput
 
@@ -190,23 +218,55 @@ class PreparationPlan(BaseTool):
 
     def _run(
         self,
-        job_description: str,
+        job_id: str,
         skill_gap_analysis: dict[str, Any],
         preparation_time: int,
         preparation_time_unit: PreparationTimeUnit,
         company_summary: str | None = None,
-        candidate_cv: str | None = None,
         hours_available_per_day: float = 4,
     ) -> ToolResponse:
-        payload = PreparationPlanInput.model_validate(
+        request = PreparationPlanInput.model_validate(
             {
-                "job_description": job_description,
+                "job_id": job_id,
                 "skill_gap_analysis": skill_gap_analysis,
                 "preparation_time": preparation_time,
                 "preparation_time_unit": preparation_time_unit,
                 "company_summary": company_summary,
-                "candidate_cv": candidate_cv,
                 "hours_available_per_day": hours_available_per_day,
+            }
+        )
+        job = db.get_job(request.job_id)
+        profile = db.get_profile(self.profile_id)
+        application = db.get_application_for_job(self.profile_id, request.job_id)
+        tailored_cv = application.get("tailored_cv_text")
+        if not isinstance(tailored_cv, str) or not tailored_cv.strip():
+            raise ValueError("The application does not have a tailored CV")
+
+        payload = PreparationPlanContext.model_validate(
+            {
+                "job_description": json.dumps(
+                    {
+                        "job_id": job.get("job_id"),
+                        "title": job.get("title"),
+                        "description": job.get("description"),
+                        "skills": job.get("skills"),
+                    },
+                    ensure_ascii=False,
+                ),
+                "skill_gap_analysis": request.skill_gap_analysis,
+                "preparation_time": request.preparation_time,
+                "preparation_time_unit": request.preparation_time_unit,
+                "company_summary": request.company_summary or json.dumps(
+                    job.get("company") or {}, ensure_ascii=False
+                ),
+                "candidate_cv": json.dumps(
+                    {
+                        "tailored_cv": tailored_cv,
+                        "original_profile_cv": profile.get("cv_text") or None,
+                    },
+                    ensure_ascii=False,
+                ),
+                "hours_available_per_day": request.hours_available_per_day,
             }
         )
         context = _build_context(payload)

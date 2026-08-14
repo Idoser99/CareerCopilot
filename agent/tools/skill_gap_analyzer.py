@@ -17,6 +17,7 @@ from pydantic import (
 
 from agent.tools.base_tool import BaseTool
 from agent.tools.tool_response import ToolResponse
+from data.db import database as db
 from api.schemas import ExecutionStep
 
 
@@ -34,10 +35,7 @@ class SkillGapModel(BaseModel):
 
 
 class SkillGapAnalyzerInput(SkillGapModel):
-    job_description: NonEmptyText = Field(
-        description="Full description of the target job"
-    )
-    cv: NonEmptyText = Field(description="Candidate's CV as plain text")
+    job_id: NonEmptyText = Field(description="ID of the target job")
 
 
 class StrongSkill(SkillGapModel):
@@ -118,7 +116,8 @@ def _build_messages(
 class SkillGapAnalyzer(BaseTool):
     name: str = "skill_gap_analyzer"
     description: str = (
-        "Compare a candidate's plain-text CV with a specific job description and "
+        "Compare a job with its application's tailored CV and the profile's "
+        "original CV, selected by job ID, and "
         "return structured strong skills, skills to strengthen, and missing skills. "
         "Use this for job-specific skill-gap analysis, not candidate scoring."
     )
@@ -139,11 +138,32 @@ class SkillGapAnalyzer(BaseTool):
             self._llm = ChatOpenAI(model=f"{model_prefix}-gpt-5-mini")
         return self._llm
 
-    def _run(self, job_description: str, cv: str) -> ToolResponse:
-        payload = SkillGapAnalyzerInput.model_validate(
-            {"job_description": job_description, "cv": cv}
+    def _run(self, job_id: str) -> ToolResponse:
+        request = SkillGapAnalyzerInput.model_validate({"job_id": job_id})
+        job = db.get_job(request.job_id)
+        profile = db.get_profile(self.profile_id)
+        application = db.get_application_for_job(self.profile_id, request.job_id)
+        job_description = json.dumps(
+            {
+                "job_id": job.get("job_id"),
+                "title": job.get("title"),
+                "description": job.get("description"),
+                "skills": job.get("skills"),
+            },
+            ensure_ascii=False,
         )
-        messages = _build_messages(payload.job_description, payload.cv)
+        tailored_cv = application.get("tailored_cv_text")
+        if not isinstance(tailored_cv, str) or not tailored_cv.strip():
+            raise ValueError("The application does not have a tailored CV")
+        cv = json.dumps(
+            {
+                "tailored_cv": tailored_cv,
+                "original_profile_cv": profile.get("cv_text") or None,
+            },
+            ensure_ascii=False,
+        )
+
+        messages = _build_messages(job_description, cv)
 
         structured_llm = self._get_llm().with_structured_output(SkillGapAnalysis)
         raw_analysis = structured_llm.invoke(messages)
@@ -157,8 +177,8 @@ class SkillGapAnalyzer(BaseTool):
                     module="Skill Gap Analyzer",
                     prompt={
                         "system": SKILL_GAP_ANALYZER_PROMPT,
-                        "job_description": payload.job_description,
-                        "cv": payload.cv,
+                        "job_description": job_description,
+                        "cv": cv,
                     },
                     response=content,
                 )

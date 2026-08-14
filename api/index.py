@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 import os
 
-from api.db import database as db
+from data.db import database as db
 from api.schemas import (
     AgentInfoResponse,
     ApplicationResponse,

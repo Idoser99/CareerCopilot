@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from agent.tools.tool_response import ToolResponse
-from api.db import database as db
+from data.db import database as db
 
 
 class SubmitApplicationInput(BaseModel):
