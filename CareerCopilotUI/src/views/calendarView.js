@@ -1,5 +1,6 @@
 import { Calendar } from "fullcalendar";
 import listPlugin from "fullcalendar/list";
+import classicThemePlugin from "fullcalendar/themes/classic";
 import timeGridPlugin from "fullcalendar/timegrid";
 import {
   escapeHtml,
@@ -98,7 +99,7 @@ export async function renderCalendarView(container, { server, signal }) {
   const controls = [...container.querySelectorAll("[data-calendar-view]")];
 
   const calendar = new Calendar(calendarElement, {
-    plugins: [timeGridPlugin, listPlugin],
+    plugins: [timeGridPlugin, listPlugin, classicThemePlugin],
     initialView: "timeGridWeek",
     initialDate: events[0]?.starts_at,
     height: "auto",
@@ -122,7 +123,7 @@ export async function renderCalendarView(container, { server, signal }) {
       title: event.title,
       start: event.starts_at,
       end: event.ends_at,
-      classNames: [`calendar-event--${String(event.status || "scheduled").toLowerCase()}`],
+      className: `calendar-event--${String(event.status || "scheduled").toLowerCase()}`,
       extendedProps: {
         applicationId: event.application_id,
         description: event.description,

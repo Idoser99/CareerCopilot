@@ -523,16 +523,24 @@ kbd {
 .agenda-copy > p:not(.agenda-time) { margin-bottom: 8px; color: var(--color-text-soft); }
 
 #full-calendar {
-  --fc-border-color: var(--color-border);
-  --fc-button-bg-color: var(--color-primary);
-  --fc-button-border-color: var(--color-primary);
-  --fc-button-hover-bg-color: var(--color-primary-dark);
-  --fc-button-hover-border-color: var(--color-primary-dark);
-  --fc-button-active-bg-color: var(--color-primary-dark);
-  --fc-button-active-border-color: var(--color-primary-dark);
-  --fc-page-bg-color: white;
-  --fc-neutral-bg-color: var(--color-surface-soft);
-  --fc-today-bg-color: rgb(229 243 254 / 60%);
+  --fc-classic-button: var(--color-primary);
+  --fc-classic-button-border: var(--color-primary);
+  --fc-classic-button-strong: var(--color-primary-dark);
+  --fc-classic-button-strong-border: var(--color-primary-dark);
+  --fc-classic-button-outline: rgb(22 113 185 / 28%);
+  --fc-classic-primary: var(--color-primary);
+  --fc-classic-event: var(--color-primary);
+  --fc-classic-background: white;
+  --fc-classic-faint: var(--color-surface-soft);
+  --fc-classic-muted: var(--color-primary-soft);
+  --fc-classic-strong: var(--color-border-strong);
+  --fc-classic-foreground: var(--color-text);
+  --fc-classic-faint-foreground: var(--color-text-faint);
+  --fc-classic-muted-foreground: var(--color-text-soft);
+  --fc-classic-border: var(--color-border);
+  --fc-classic-strong-border: var(--color-border-strong);
+  --fc-classic-today: rgb(229 243 254 / 60%);
+  --fc-classic-now: var(--color-danger);
   color: var(--color-text-soft);
   font-size: 0.86rem;
 }
