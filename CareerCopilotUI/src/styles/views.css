@@ -869,8 +869,12 @@ kbd {
 
   .profile-selector { justify-self: end; width: min(100%, 280px); }
 
-  .tab-nav {
+  .header-navigation {
     grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .tab-nav {
     justify-content: flex-start;
     min-width: 0;
     overflow-x: auto;
@@ -931,8 +935,13 @@ kbd {
   .header-inner { grid-template-columns: 1fr; }
   .brand { justify-self: center; }
   .profile-selector { justify-self: stretch; width: 100%; }
-  .tab-nav { margin: 0 -12px; padding: 0 12px; }
+  .header-navigation { margin: 0 -12px; width: calc(100% + 24px); }
+  .tab-nav { margin: 0; padding: 0 12px; }
   .tab-nav a { padding: 0 11px; }
+
+  .notification-center {
+    margin-right: 8px;
+  }
 
   .main-content { padding-top: 30px; }
 
