@@ -179,6 +179,20 @@ def create_agent_session(
     )
 
 
+@app.get("/api/sessions", response_model=list[AgentSessionSummaryResponse])
+def get_agent_sessions(
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> list[AgentSessionSummaryResponse]:
+    profile_id = get_profile_id(header_profile_id)
+    return [
+        AgentSessionSummaryResponse(
+            id=session["id"],
+            title=session.get("title") or "New conversation",
+        )
+        for session in db.get_agent_sessions(profile_id)
+    ]
+
+
 @app.get("/api/sessions/{session_id}", response_model=AgentSessionResponse)
 def get_agent_session(
         session_id: UUID,
