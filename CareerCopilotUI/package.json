@@ -19,7 +19,8 @@
     "fullcalendar": "^7.0.2",
     "mammoth": "^1.12.1",
     "marked": "^18.0.9",
-    "pdfjs-dist": "5.4.624"
+    "pdfjs-dist": "5.4.624",
+    "temporal-polyfill": "^1.0.4"
   },
   "devDependencies": {
     "vite": "^6.1.0"
