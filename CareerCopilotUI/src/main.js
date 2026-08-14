@@ -1,3 +1,7 @@
+import "fullcalendar/skeleton.css";
+import "fullcalendar/themes/classic/theme.css";
+import "fullcalendar/themes/classic/palette.css";
+
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
