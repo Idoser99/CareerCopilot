@@ -90,7 +90,9 @@ class ApplicationResponse(BaseModel):
     job_title: str
     company: str
     tailored_cv_text: str | None
-    status: Literal["draft", "pending", "accepted", "rejected", "scheduled"]
+    status: Literal[
+        "draft", "pending", "accepted", "rejected", "withdrawn", "scheduled"
+    ]
     submitted_at: datetime | None
     created_at: datetime
 
@@ -108,7 +110,7 @@ class EmailResponse(BaseModel):
 class CalendarEventResponse(BaseModel):
     id: UUID
     application_id: UUID
-    event_type: str
+    event_type: Literal["interview", "preparation"]
     title: str
     description: str | None
     starts_at: datetime

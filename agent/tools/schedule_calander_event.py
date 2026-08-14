@@ -11,7 +11,9 @@ from data.db import database as db
 
 class ScheduleCalanderEventInput(BaseModel):
     application_id: UUID = Field(description="the related application")
-    event_type: Literal["interview"] = Field(description="the event type")
+    event_type: Literal["interview", "preparation"] = Field(
+        description="interview appointment or preparation time"
+    )
     title: str = Field(description="the event title")
     description: str | None = Field(default=None, description="the event description")
     starts_at: datetime = Field(description="event start time including timezone")
@@ -20,7 +22,9 @@ class ScheduleCalanderEventInput(BaseModel):
 
 class ScheduleCalanderEvent(BaseTool):
     name: str = "schedule_calander_event"
-    description: str = "schedules a calendar event for an application"
+    description: str = (
+        "schedules an interview or preparation calendar event for an application"
+    )
     args_schema: Type[BaseModel] = ScheduleCalanderEventInput
 
     def _run(
@@ -44,4 +48,10 @@ class ScheduleCalanderEvent(BaseTool):
             starts_at=starts_at,
             ends_at=starts_at + timedelta(minutes=duration_minutes),
         )
+        if event_type == "interview":
+            db.set_application_status(
+                profile_id=self.profile_id,
+                application_id=application_id,
+                status="scheduled",
+            )
         return ToolResponse(content=event)

@@ -2,6 +2,7 @@ from uuid import UUID
 
 from agent.tools.base_tool import BaseTool
 from agent.tools.get_profile_cv import GetProfileCV
+from agent.tools.get_job_details import GetJobDetails
 from agent.tools.preparation_plan import PreparationPlan
 from agent.tools.skill_gap_analyzer import SkillGapAnalyzer
 from agent.tools.list_applications import ListApplications
@@ -13,6 +14,7 @@ from agent.tools.tailor_cv import TailorCV
 from agent.tools.search_jobs import SearchJobs
 from agent.tools.submit_application import SubmitApplication
 from agent.tools.update_calander_event import UpdateCalanderEvent
+from agent.tools.withdraw_application import WithdrawApplication
 
 
 class ToolRegistry:
@@ -32,6 +34,7 @@ class ToolRegistry:
 def create_registry(profile_id: UUID) -> ToolRegistry:
     return ToolRegistry([
         GetProfileCV(profile_id=profile_id),
+        GetJobDetails(profile_id=profile_id),
         PreparationPlan(profile_id=profile_id),
         SkillGapAnalyzer(profile_id=profile_id),
         ListApplications(profile_id=profile_id),
@@ -42,5 +45,6 @@ def create_registry(profile_id: UUID) -> ToolRegistry:
         TailorCV(profile_id=profile_id),
         SearchJobs(profile_id=profile_id),
         SubmitApplication(profile_id=profile_id),
-        UpdateCalanderEvent(profile_id=profile_id)
+        UpdateCalanderEvent(profile_id=profile_id),
+        WithdrawApplication(profile_id=profile_id)
     ])

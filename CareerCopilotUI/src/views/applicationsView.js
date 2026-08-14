@@ -6,7 +6,15 @@ import {
   statusClass,
 } from "../ui/sharedComponents.js";
 
-const STATUSES = ["all", "draft", "pending", "accepted", "rejected", "scheduled"];
+const STATUSES = [
+  "all",
+  "draft",
+  "pending",
+  "accepted",
+  "rejected",
+  "withdrawn",
+  "scheduled",
+];
 
 function renderRows(applications) {
   return applications
