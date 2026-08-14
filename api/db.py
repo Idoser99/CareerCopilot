@@ -1,10 +1,12 @@
 import os
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
 from fastapi import HTTPException
 from supabase import Client, create_client
+
+from api.jobs_db import JobsDatabase
 
 
 load_dotenv()
@@ -22,6 +24,7 @@ class Database:
         url = os.getenv("SUPABASE_URL", "").strip()
         key = os.getenv("SUPABASE_SECRET_KEY", "").strip()
         self._client = create_client(url, key) if url and key else None
+        self._jobs = JobsDatabase()
 
     def _get_client(self) -> Client:
         if self._client is None:
@@ -70,6 +73,75 @@ class Database:
             .eq("profile_id", str(profile_id))
             .order("created_at", desc=True)
         )
+
+    def get_application_for_job(self, profile_id: UUID, job_id: str) -> dict:
+        applications = _execute(
+            self._get_client()
+            .table("applications")
+            .select(
+                "id,profile_id,job_id,job_title,company,tailored_cv_text,"
+                "status,submitted_at,created_at"
+            )
+            .eq("profile_id", str(profile_id))
+            .eq("job_id", job_id)
+            .order("created_at", desc=True)
+            .limit(1)
+        )
+        if not applications:
+            raise HTTPException(404, "Application not found for this job")
+        return applications[0]
+
+    def save_draft_application(
+        self,
+        profile_id: UUID,
+        job_id: str,
+        job_title: str,
+        company: str,
+        tailored_cv_text: str,
+    ) -> dict:
+        client = self._get_client()
+        existing = _execute(
+            client
+            .table("applications")
+            .select("id")
+            .eq("profile_id", str(profile_id))
+            .eq("job_id", job_id)
+            .eq("status", "draft")
+            .limit(1)
+        )
+        values = {
+            "job_title": job_title,
+            "company": company,
+            "tailored_cv_text": tailored_cv_text,
+            "status": "draft",
+        }
+
+        if existing:
+            applications = _execute(
+                client
+                .table("applications")
+                .update(values)
+                .eq("id", existing[0]["id"])
+                .eq("profile_id", str(profile_id))
+            )
+        else:
+            applications = _execute(
+                client
+                .table("applications")
+                .insert({
+                    "id": str(uuid4()),
+                    "profile_id": str(profile_id),
+                    "job_id": job_id,
+                    **values,
+                })
+            )
+        return applications[0]
+
+    def get_jobs(self) -> list[dict]:
+        return self._jobs.get_jobs()
+
+    def get_job(self, job_id: str) -> dict:
+        return self._jobs.get_job(job_id)
 
     def set_application_status(
         self,

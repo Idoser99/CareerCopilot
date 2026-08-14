@@ -1,19 +1,14 @@
 """Tool that searches the simulated jobs database."""
 
-import json
 import math
 import re
-from pathlib import Path
 from typing import Any, Type
 
 from agent.tools.base_tool import BaseTool
 from pydantic import BaseModel, Field
 
 from agent.tools.tool_response import ToolResponse
-
-JOBS_FILE = Path(__file__).resolve().parents[2] / "data" / (
-    "linkedin_like_simulated_jobs_tech_focused.json"
-)
+from api.db import database as db
 
 RETRIEVABLE_FIELDS = {
     "company.industry": ("company", "industry"),
@@ -176,21 +171,13 @@ def find_relevant_jobs(preferences: dict, max_results: int = 10) -> list[dict]:
     ):
         raise TypeError("minimum_score must be a finite number")
 
-    try:
-        with JOBS_FILE.open(encoding="utf-8") as file:
-            data = json.load(file)
-    except json.JSONDecodeError as error:
-        raise ValueError("The jobs file is not valid JSON") from error
-    if not isinstance(data, dict) or not isinstance(data.get("jobs"), list):
-        raise ValueError("The jobs file must contain a 'jobs' list")
-
     accepted = {
         field: {normalize(value) for value in values}
         for field, values in wanted.items()
     }
     ranked_jobs = []
 
-    for position, job in enumerate(data["jobs"]):
+    for position, job in enumerate(db.get_jobs()):
         if not isinstance(job, dict):
             continue
 

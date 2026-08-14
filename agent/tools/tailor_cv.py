@@ -17,6 +17,7 @@ from pydantic import (
 
 from agent.tools.base_tool import BaseTool
 from agent.tools.tool_response import ToolResponse
+from api.db import database as db
 from api.schemas import ExecutionStep
 
 
@@ -27,7 +28,22 @@ NonEmptyText = Annotated[
 
 
 class TailorCVInput(BaseModel):
-    """Information needed to tailor an existing CV to one opportunity."""
+    """Job whose application CV should be tailored."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    job_id: NonEmptyText = Field(description="ID of the target job")
+    company_information: NonEmptyText | None = Field(
+        default=None,
+        description=(
+            "Optional company information or summary, for example output from "
+            "a company research tool"
+        ),
+    )
+
+
+class TailorCVContext(BaseModel):
+    """Candidate and job information supplied to the existing tailoring logic."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -84,7 +100,7 @@ document generation.
 """.strip()
 
 
-def _build_context(payload: TailorCVInput) -> dict[str, str]:
+def _build_context(payload: TailorCVContext) -> dict[str, str]:
     context = {
         "cv_content": payload.cv_content,
         "job_information": payload.job_information,
@@ -112,9 +128,8 @@ def _build_messages(
 class TailorCV(BaseTool):
     name: str = "tailor_cv"
     description: str = (
-        "Produce the strongest truthful version of a candidate's existing CV for "
-        "a specific job opportunity. Returns the complete revised CV as text for "
-        "later document generation; it does not create a DOCX or PDF."
+        "Tailor the active profile's CV for a job ID and save it as a draft "
+        "application. It does not submit the application or create a DOCX or PDF."
     )
     args_schema: Type[BaseModel] = TailorCVInput
 
@@ -135,15 +150,39 @@ class TailorCV(BaseTool):
 
     def _run(
         self,
-        cv_content: str,
-        job_information: str,
+        job_id: str,
         company_information: str | None = None,
     ) -> ToolResponse:
-        payload = TailorCVInput.model_validate(
+        request = TailorCVInput.model_validate(
             {
-                "cv_content": cv_content,
-                "job_information": job_information,
+                "job_id": job_id,
                 "company_information": company_information,
+            }
+        )
+        job = db.get_job(request.job_id)
+        profile = db.get_profile(self.profile_id)
+        cv_text = profile.get("cv_text")
+        if not isinstance(cv_text, str) or not cv_text.strip():
+            raise ValueError("The active profile does not have a CV")
+
+        job_information = json.dumps(
+            {
+                "job_id": job.get("job_id"),
+                "title": job.get("title"),
+                "description": job.get("description"),
+                "skills": job.get("skills"),
+                "employment": job.get("employment"),
+            },
+            ensure_ascii=False,
+        )
+        resolved_company_information = request.company_information or json.dumps(
+            job.get("company") or {}, ensure_ascii=False
+        )
+        payload = TailorCVContext.model_validate(
+            {
+                "cv_content": cv_text,
+                "job_information": job_information,
+                "company_information": resolved_company_information,
             }
         )
         context = _build_context(payload)
@@ -154,8 +193,24 @@ class TailorCV(BaseTool):
         if not isinstance(content, str) or not content.strip():
             raise ValueError("Tailor CV did not return readable CV text")
 
+        company = job.get("company") or {}
+        application = db.save_draft_application(
+            profile_id=self.profile_id,
+            job_id=str(job.get("job_id") or ""),
+            job_title=str(job.get("title") or ""),
+            company=str(company.get("name") or ""),
+            tailored_cv_text=content,
+        )
+
         return ToolResponse(
-            content=content,
+            content={
+                "application_id": application["id"],
+                "job_id": application["job_id"],
+                "job_title": application["job_title"],
+                "company": application["company"],
+                "status": application["status"],
+                "tailored_cv_text": application["tailored_cv_text"],
+            },
             steps=[
                 ExecutionStep(
                     module="Tailor CV",
