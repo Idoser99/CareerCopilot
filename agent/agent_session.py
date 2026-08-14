@@ -11,9 +11,18 @@ import json
 class AgentSession:
     """tracks the agent session - llm calls, tool calls and responses, user prompts"""
 
-    def __init__(self):
+    def __init__(self, history: list[dict] | None = None):
         self.messages: [BaseMessage] = []
         self.add_system_message(CAREER_COPILOT_SYSTEM_PROMPT)
+        for message in history or []:
+            role = message.get("role")
+            content = message.get("content")
+            if not isinstance(content, str):
+                continue
+            if role == "user":
+                self.add_user_message(content)
+            elif role == "assistant":
+                self.add_ai_message(AIMessage(content=content))
 
     def add_system_message(self, content: str):
         self.messages.append(SystemMessage(content=content))
@@ -32,6 +41,15 @@ class AgentSession:
                 ensure_ascii=False,
             )
         self.messages.append(ToolMessage(content=tool_response, tool_call_id=tool_call_id))
+
+    def get_lean_session(self) -> list[dict]:
+        history = []
+        for message in self.messages:
+            if isinstance(message, HumanMessage):
+                history.append({"role": "user", "content": message.content})
+            elif isinstance(message, AIMessage) and not message.tool_calls:
+                history.append({"role": "assistant", "content": message.content})
+        return history
 
 
 CAREER_COPILOT_SYSTEM_PROMPT = """

@@ -50,6 +50,20 @@ class ExecuteResponse(BaseModel):
     steps: list[ExecutionStep]
 
 
+class AgentSessionMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class AgentSessionSummaryResponse(BaseModel):
+    id: UUID
+    title: str
+
+
+class AgentSessionResponse(AgentSessionSummaryResponse):
+    messages: list[AgentSessionMessage]
+
+
 class ProfileSummaryResponse(BaseModel):
     id: UUID
     name: str

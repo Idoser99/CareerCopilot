@@ -88,6 +88,7 @@ class Database:
         self,
         profile_id: UUID,
         messages: dict | list[dict],
+        title: str = "New conversation",
     ) -> dict:
         new_messages = messages if isinstance(messages, list) else [messages]
         sessions = _execute(
@@ -95,6 +96,7 @@ class Database:
             .table("agent_sessions")
             .insert({
                 "profile_id": str(profile_id),
+                "title": title,
                 "messages": new_messages,
             })
         )
@@ -105,20 +107,20 @@ class Database:
         profile_id: UUID,
         session_id: UUID,
         messages: dict | list[dict],
+        title: str | None = None,
     ) -> dict:
-        session = self.get_agent_session(profile_id, session_id)
-        existing_messages = session.get("messages") or []
-        if not isinstance(existing_messages, list):
-            raise HTTPException(500, "Agent session messages must be a list")
-
         new_messages = messages if isinstance(messages, list) else [messages]
+        values = {
+            "messages": new_messages,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if title is not None:
+            values["title"] = title
+
         sessions = _execute(
             self._get_client()
             .table("agent_sessions")
-            .update({
-                "messages": existing_messages + new_messages,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
+            .update(values)
             .eq("id", str(session_id))
             .eq("profile_id", str(profile_id))
         )
