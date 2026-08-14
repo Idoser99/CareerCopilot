@@ -83,6 +83,15 @@ class CvUploadRequest(BaseModel):
     cv_text: str
 
 
+class NotificationResponse(BaseModel):
+    id: UUID
+    profile_id: UUID
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+
+
 class ApplicationResponse(BaseModel):
     id: UUID
     profile_id: UUID

@@ -20,6 +20,7 @@ from api.schemas import (
     ExecuteRequest,
     ExecuteResponse,
     ExecutionStep,
+    NotificationResponse,
     ProfileResponse,
     ProfileSummaryResponse,
     PromptExample,
@@ -226,6 +227,31 @@ def get_profile(
 ) -> ProfileResponse:
     profile_id = get_profile_id(header_profile_id)
     return ProfileResponse(**db.get_profile(profile_id))
+
+
+@app.get("/api/notifications", response_model=list[NotificationResponse])
+def get_notifications(
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> list[NotificationResponse]:
+    profile_id = get_profile_id(header_profile_id)
+    return db.list_notifications(profile_id)
+
+
+@app.patch("/api/notifications/{notification_id}/read", response_model=NotificationResponse)
+def mark_notification_as_read(
+        notification_id: UUID,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> NotificationResponse:
+    profile_id = get_profile_id(header_profile_id)
+    return db.mark_notification_as_read(profile_id, notification_id)
+
+
+@app.patch("/api/notifications/read-all", response_model=list[NotificationResponse])
+def mark_all_notifications_as_read(
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> list[NotificationResponse]:
+    profile_id = get_profile_id(header_profile_id)
+    return db.mark_all_notifications_as_read(profile_id)
 
 
 @app.get("/api/applications", response_model=list[ApplicationResponse])
