@@ -37,22 +37,24 @@ function renderRows(applications) {
           <td>${escapeHtml(formatDateTime(application.submitted_at))}</td>
           <td>${escapeHtml(formatDateTime(application.created_at))}</td>
           <td>
-            <div class="application-decision-actions">
-              <button
-                class="application-decision-button application-decision-button--accept"
-                type="button"
-                data-application-id="${escapeHtml(application.id)}"
-                data-decision="accepted"
-                aria-label="Simulate acceptance for ${escapeHtml(application.job_title)} at ${escapeHtml(application.company)}"
-              >Accept</button>
-              <button
-                class="application-decision-button application-decision-button--reject"
-                type="button"
-                data-application-id="${escapeHtml(application.id)}"
-                data-decision="rejected"
-                aria-label="Simulate rejection for ${escapeHtml(application.job_title)} at ${escapeHtml(application.company)}"
-              >Reject</button>
-            </div>
+            ${application.status === "pending" ? `
+              <div class="application-decision-actions">
+                <button
+                  class="application-decision-button application-decision-button--accept"
+                  type="button"
+                  data-application-id="${escapeHtml(application.id)}"
+                  data-decision="accepted"
+                  aria-label="Simulate acceptance for ${escapeHtml(application.job_title)} at ${escapeHtml(application.company)}"
+                >Accept</button>
+                <button
+                  class="application-decision-button application-decision-button--reject"
+                  type="button"
+                  data-application-id="${escapeHtml(application.id)}"
+                  data-decision="rejected"
+                  aria-label="Simulate rejection for ${escapeHtml(application.job_title)} at ${escapeHtml(application.company)}"
+                >Reject</button>
+              </div>
+            ` : "—"}
           </td>
         </tr>
       `,
