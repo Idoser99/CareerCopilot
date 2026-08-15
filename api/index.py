@@ -56,11 +56,11 @@ def ping():
 @app.get("/api/team_info", response_model=TeamInfoResponse)
 def team_info() -> TeamInfoResponse:
     return TeamInfoResponse(
-        group_batch_order_number="1_{order#}",
-        team_name="Ido & Yarden",
+        group_batch_order_number="1_5",
+        team_name="Ido & Yarden - CareerCopilot",
         students=[
             Student(name="Ido Oserovitz", email="idoser99@gmail.com"),
-            Student(name="Yarden", email="yarden@gmail.com"),
+            Student(name="Yarden Basharim", email="basharimyar@gmail.com"),
         ],
     )
 
