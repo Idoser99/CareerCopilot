@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
 from data.db import database as db
+from api.agent_metadata import create_agent_info
 from api.schemas import (
     AgentInfoResponse,
     AgentSessionResponse,
@@ -21,12 +22,9 @@ from api.schemas import (
     EmailResponse,
     ExecuteRequest,
     ExecuteResponse,
-    ExecutionStep,
     NotificationResponse,
     ProfileResponse,
     ProfileSummaryResponse,
-    PromptExample,
-    PromptTemplate,
     Student,
     TeamInfoResponse,
 )
@@ -69,35 +67,7 @@ def team_info() -> TeamInfoResponse:
 
 @app.get("/api/agent_info", response_model=AgentInfoResponse)
 def agent_info() -> AgentInfoResponse:
-    return AgentInfoResponse(
-        description="…",
-        purpose="…",
-        prompt_template=PromptTemplate(template="…"),
-        prompt_examples=[
-            PromptExample(
-                prompt="Example prompt 1…",
-                full_response="Full response your agent returns…",
-                steps=[
-                    ExecutionStep(
-                        module="CV Tailoring",
-                        prompt={},
-                        response={},
-                    )
-                ],
-            ),
-            PromptExample(
-                prompt="Example prompt 2…",
-                full_response="Full response your agent returns…",
-                steps=[
-                    ExecutionStep(
-                        module="Submit Application",
-                        prompt={},
-                        response={},
-                    )
-                ],
-            ),
-        ],
-    )
+    return create_agent_info()
 
 
 @app.get("/api/model_architecture", response_class=FileResponse)
