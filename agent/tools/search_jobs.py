@@ -297,7 +297,10 @@ class SearchJobs(BaseTool):
         minimum_score: float = 1,
         max_results: int = 10,
     ) -> ToolResponse:
-        if not keyword.strip():
+        if keyword is None and job_id is None:
+            raise ValueError("keyword and job id cannot be both empty ")
+        
+        if keyword is not None and not keyword.strip():
             raise ValueError("keyword cannot be empty")
 
         retrieve_fields = retrieve_fields or []
