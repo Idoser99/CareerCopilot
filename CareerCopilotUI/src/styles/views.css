@@ -589,6 +589,77 @@ kbd {
 
 .execution-details ol { margin-bottom: 0; }
 
+.execution-step-list {
+  display: grid;
+  gap: 8px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.execution-step-item > details {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: white;
+}
+
+.execution-step-item > details > summary {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 9px 11px;
+}
+
+.execution-step-item > details > summary > span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-soft);
+  font-size: 0.7rem;
+}
+
+.execution-step-data {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 11px 11px;
+}
+
+.execution-step-data section {
+  min-width: 0;
+}
+
+.execution-step-data h3 {
+  margin: 0 0 5px;
+  color: var(--color-text-faint);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.execution-step-data pre {
+  max-height: 300px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border-radius: 7px;
+  color: var(--color-text-soft);
+  background: var(--color-surface-soft);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .execution-step-data {
+    grid-template-columns: 1fr;
+  }
+}
+
 .applications-card {
   padding-right: 0;
   padding-left: 0;

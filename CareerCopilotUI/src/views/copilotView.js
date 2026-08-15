@@ -9,12 +9,27 @@ function renderSteps(steps) {
   return `
     <details class="execution-details">
       <summary>Execution details <span>${steps.length}</span></summary>
-      <ol>
+      <ol class="execution-step-list">
         ${steps
           .map(
-            (step) => `
-              <li>
-                <strong>${escapeHtml(step.module || "Agent step")}</strong>
+            (step, index) => `
+              <li class="execution-step-item">
+                <details>
+                  <summary>
+                    <span>${index + 1}</span>
+                    <strong>${escapeHtml(step.module || "Agent step")}</strong>
+                  </summary>
+                  <div class="execution-step-data">
+                    <section>
+                      <h3>Prompt</h3>
+                      <pre>${escapeHtml(JSON.stringify(step.prompt || {}, null, 2))}</pre>
+                    </section>
+                    <section>
+                      <h3>Response</h3>
+                      <pre>${escapeHtml(JSON.stringify(step.response || {}, null, 2))}</pre>
+                    </section>
+                  </div>
+                </details>
               </li>
             `,
           )
