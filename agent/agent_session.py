@@ -53,6 +53,50 @@ class AgentSession:
                 history.append({"role": "assistant", "content": message.content})
         return history
 
+    @staticmethod
+    def format_messages(messages: list[BaseMessage]) -> list[dict]:
+        """Keep only readable message content and tool activity for step logs."""
+        formatted_messages = []
+        tool_names = {}
+
+        for message in messages:
+            if isinstance(message, SystemMessage):
+                role = "system"
+            elif isinstance(message, HumanMessage):
+                role = "user"
+            elif isinstance(message, AIMessage):
+                role = "assistant"
+            elif isinstance(message, ToolMessage):
+                role = "tool"
+            else:
+                continue
+
+            content = message.content
+            if isinstance(message, ToolMessage) and isinstance(content, str):
+                try:
+                    content = json.loads(content)
+                except json.JSONDecodeError:
+                    pass
+
+            formatted_message = {"role": role, "content": content}
+            if isinstance(message, AIMessage) and message.tool_calls:
+                formatted_message["tool_calls"] = [
+                    {"name": call["name"], "args": call["args"]}
+                    for call in message.tool_calls
+                ]
+                tool_names.update({
+                    call["id"]: call["name"]
+                    for call in message.tool_calls
+                })
+            elif isinstance(message, ToolMessage):
+                tool_name = tool_names.get(message.tool_call_id) or message.name
+                if tool_name:
+                    formatted_message["name"] = tool_name
+
+            formatted_messages.append(formatted_message)
+
+        return formatted_messages
+
 
 CAREER_COPILOT_SYSTEM_PROMPT = """
 You are CareerCopilot, a career assistant for the currently selected profile.
