@@ -42,7 +42,7 @@ let notificationRequestNumber = 0;
 
 function getTabFromLocation() {
   const tab = window.location.hash.replace(/^#\/?/, "");
-  return VIEW_LOADERS[tab] ? tab : "profile";
+  return VIEW_LOADERS[tab] ? tab : "copilot";
 }
 
 function renderShell() {
