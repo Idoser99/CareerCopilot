@@ -9,7 +9,12 @@ import "./styles/views.css";
 
 import { careerCopilotServer } from "./api/CareerCopilotServer.js";
 import { appState } from "./state/appState.js";
-import { escapeHtml, renderError, renderLoading } from "./ui/sharedComponents.js";
+import {
+  escapeHtml,
+  formatDateTime,
+  renderError,
+  renderLoading,
+} from "./ui/sharedComponents.js";
 
 const TABS = [
   { id: "profile", label: "Profile" },
@@ -32,6 +37,8 @@ const root = document.querySelector("#app");
 let activeController = null;
 let activeCleanup = null;
 let renderVersion = 0;
+let notifications = [];
+let notificationRequestNumber = 0;
 
 function getTabFromLocation() {
   const tab = window.location.hash.replace(/^#\/?/, "");
@@ -55,15 +62,58 @@ function renderShell() {
           </select>
         </label>
 
-        <nav class="tab-nav" aria-label="Primary navigation">
-          ${TABS.map(
-            (tab) => `
-              <a href="#${tab.id}" data-tab="${tab.id}">
-                ${escapeHtml(tab.label)}
-              </a>
-            `,
-          ).join("")}
-        </nav>
+        <div class="header-navigation">
+          <nav class="tab-nav" aria-label="Primary navigation">
+            ${TABS.map(
+              (tab) => `
+                <a href="#${tab.id}" data-tab="${tab.id}">
+                  ${escapeHtml(tab.label)}
+                </a>
+              `,
+            ).join("")}
+          </nav>
+
+          <div class="notification-center">
+            <button
+              id="notification-button"
+              class="notification-button"
+              type="button"
+              aria-label="Notifications"
+              aria-expanded="false"
+              aria-controls="notification-dropdown"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3.5 6.5h17v11h-17z"></path>
+                <path d="m4 7 8 6 8-6"></path>
+              </svg>
+              <span id="notification-badge" class="notification-badge" hidden></span>
+            </button>
+
+            <section
+              id="notification-dropdown"
+              class="notification-dropdown"
+              aria-label="Notifications"
+              hidden
+            >
+              <header class="notification-dropdown-header">
+                <div>
+                  <p class="eyebrow">Updates</p>
+                  <h2>Notifications</h2>
+                </div>
+                <button
+                  id="mark-all-notifications-read"
+                  class="notification-mark-all"
+                  type="button"
+                >
+                  Mark all as read
+                </button>
+              </header>
+              <div id="notification-list" class="notification-list" aria-live="polite">
+                <div class="notification-empty">Loading notifications…</div>
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -74,6 +124,130 @@ function renderShell() {
   `;
 
   root.querySelector("#profile-selector").addEventListener("change", handleProfileChange);
+  root.querySelector("#notification-button").addEventListener("click", toggleNotifications);
+  root
+    .querySelector("#mark-all-notifications-read")
+    .addEventListener("click", markAllNotificationsAsRead);
+  root.querySelector("#notification-list").addEventListener("click", handleNotificationClick);
+}
+
+function renderNotifications() {
+  const badge = root.querySelector("#notification-badge");
+  const button = root.querySelector("#notification-button");
+  const list = root.querySelector("#notification-list");
+  const markAllButton = root.querySelector("#mark-all-notifications-read");
+  if (!badge || !button || !list || !markAllButton) return;
+
+  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
+  badge.hidden = unreadCount === 0;
+  badge.textContent = unreadCount > 9 ? "9+" : String(unreadCount);
+  button.setAttribute(
+    "aria-label",
+    unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications",
+  );
+  markAllButton.hidden = unreadCount === 0;
+
+  if (notifications.length === 0) {
+    list.innerHTML = `
+      <div class="notification-empty">
+        <span aria-hidden="true">✓</span>
+        <strong>You're all caught up</strong>
+        <p>CareerCopilot updates will appear here.</p>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = notifications
+    .map(
+      (notification) => `
+        <button
+          class="notification-item ${notification.is_read ? "" : "is-unread"}"
+          type="button"
+          data-notification-id="${escapeHtml(notification.id)}"
+        >
+          <span class="notification-unread-dot" aria-hidden="true"></span>
+          <span class="notification-item-content">
+            <strong>${escapeHtml(notification.title)}</strong>
+            <span>${escapeHtml(notification.message)}</span>
+            <time datetime="${escapeHtml(notification.created_at)}">
+              ${escapeHtml(formatDateTime(notification.created_at))}
+            </time>
+          </span>
+        </button>
+      `,
+    )
+    .join("");
+}
+
+async function loadNotifications() {
+  const currentRequest = ++notificationRequestNumber;
+  try {
+    const response = await careerCopilotServer.getNotifications();
+    if (currentRequest !== notificationRequestNumber) return;
+    notifications = Array.isArray(response) ? response : [];
+    renderNotifications();
+  } catch (error) {
+    if (currentRequest !== notificationRequestNumber) return;
+    const list = root.querySelector("#notification-list");
+    if (list) {
+      list.innerHTML = `
+        <div class="notification-empty notification-empty--error">
+          ${escapeHtml(error.message)}
+        </div>
+      `;
+    }
+  }
+}
+
+function closeNotifications() {
+  const button = root.querySelector("#notification-button");
+  const dropdown = root.querySelector("#notification-dropdown");
+  if (!button || !dropdown) return;
+  dropdown.hidden = true;
+  button.setAttribute("aria-expanded", "false");
+}
+
+function toggleNotifications() {
+  const button = root.querySelector("#notification-button");
+  const dropdown = root.querySelector("#notification-dropdown");
+  const shouldOpen = dropdown.hidden;
+  dropdown.hidden = !shouldOpen;
+  button.setAttribute("aria-expanded", String(shouldOpen));
+  if (shouldOpen) loadNotifications();
+}
+
+async function handleNotificationClick(event) {
+  const item = event.target.closest("[data-notification-id]");
+  if (!item || !item.classList.contains("is-unread")) return;
+
+  item.disabled = true;
+  try {
+    const updated = await careerCopilotServer.markNotificationAsRead(
+      item.dataset.notificationId,
+    );
+    notifications = notifications.map((notification) =>
+      notification.id === updated.id ? updated : notification,
+    );
+    renderNotifications();
+  } catch (error) {
+    item.disabled = false;
+  }
+}
+
+async function markAllNotificationsAsRead() {
+  const button = root.querySelector("#mark-all-notifications-read");
+  button.disabled = true;
+  try {
+    await careerCopilotServer.markAllNotificationsAsRead();
+    notifications = notifications.map((notification) => ({
+      ...notification,
+      is_read: true,
+    }));
+    renderNotifications();
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function updateActiveTab(tab) {
@@ -114,6 +288,10 @@ async function loadProfiles() {
 function handleProfileChange(event) {
   appState.selectProfile(event.target.value);
   careerCopilotServer.setProfileId(appState.profileId);
+  notifications = [];
+  renderNotifications();
+  loadNotifications();
+  closeNotifications();
   renderActiveView();
 }
 
@@ -146,6 +324,7 @@ async function renderActiveView() {
     const cleanup = await renderView(container, {
       server: careerCopilotServer,
       signal: activeController.signal,
+      refreshNotifications: loadNotifications,
     });
 
     if (version !== renderVersion) {
@@ -167,6 +346,7 @@ async function start() {
 
   try {
     await loadProfiles();
+    await loadNotifications();
     root.querySelector("#connection-banner").innerHTML = "";
     await renderActiveView();
   } catch (error) {
@@ -186,4 +366,12 @@ async function start() {
 }
 
 window.addEventListener("hashchange", renderActiveView);
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".notification-center")) {
+    closeNotifications();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeNotifications();
+});
 start();

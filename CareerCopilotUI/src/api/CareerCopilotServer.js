@@ -33,6 +33,24 @@ export class CareerCopilotServer {
     return this.#request("/profile", { signal });
   }
 
+  getNotifications({ signal } = {}) {
+    return this.#request("/notifications", { signal });
+  }
+
+  markNotificationAsRead(notificationId, { signal } = {}) {
+    return this.#request(
+      `/notifications/${encodeURIComponent(notificationId)}/read`,
+      { method: "PATCH", signal },
+    );
+  }
+
+  markAllNotificationsAsRead({ signal } = {}) {
+    return this.#request("/notifications/read-all", {
+      method: "PATCH",
+      signal,
+    });
+  }
+
   uploadCv(cvText, { signal } = {}) {
     return this.#request("/profile/cv", {
       method: "POST",
@@ -78,6 +96,17 @@ export class CareerCopilotServer {
       query: status && status !== "all" ? { status } : undefined,
       signal,
     });
+  }
+
+  simulateApplicationDecision(applicationId, decision, { signal } = {}) {
+    return this.#request(
+      `/demo/applications/${encodeURIComponent(applicationId)}/decision`,
+      {
+        method: "POST",
+        body: { decision },
+        signal,
+      },
+    );
   }
 
   getEmails({ signal } = {}) {

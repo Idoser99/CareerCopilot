@@ -68,6 +68,58 @@ class Database:
             raise HTTPException(404, "Profile not found")
         return profiles[0]
 
+    def list_notifications(self, profile_id: UUID) -> list[dict]:
+        return _execute(
+            self._get_client()
+            .table("notifications")
+            .select("id,profile_id,title,message,is_read,created_at")
+            .eq("profile_id", str(profile_id))
+            .order("created_at", desc=True)
+        )
+
+    def mark_notification_as_read(
+        self,
+        profile_id: UUID,
+        notification_id: UUID,
+    ) -> dict:
+        notifications = _execute(
+            self._get_client()
+            .table("notifications")
+            .update({"is_read": True})
+            .eq("id", str(notification_id))
+            .eq("profile_id", str(profile_id))
+        )
+        if not notifications:
+            raise HTTPException(404, "Notification not found")
+        return notifications[0]
+
+    def mark_all_notifications_as_read(self, profile_id: UUID) -> list[dict]:
+        return _execute(
+            self._get_client()
+            .table("notifications")
+            .update({"is_read": True})
+            .eq("profile_id", str(profile_id))
+            .eq("is_read", False)
+        )
+
+    def add_notification(
+        self,
+        profile_id: UUID,
+        title: str,
+        message: str,
+    ) -> dict:
+        notifications = _execute(
+            self._get_client()
+            .table("notifications")
+            .insert({
+                "profile_id": str(profile_id),
+                "title": title,
+                "message": message,
+                "is_read": False,
+            })
+        )
+        return notifications[0]
+
     def get_agent_sessions(self, profile_id: UUID) -> list[dict]:
         return _execute(
             self._get_client()
@@ -161,6 +213,22 @@ class Database:
         )
         if not applications:
             raise HTTPException(404, "Application not found for this job")
+        return applications[0]
+
+    def get_application(self, profile_id: UUID, application_id: UUID) -> dict:
+        applications = _execute(
+            self._get_client()
+            .table("applications")
+            .select(
+                "id,profile_id,job_id,job_title,company,tailored_cv_text,"
+                "status,submitted_at,created_at"
+            )
+            .eq("id", str(application_id))
+            .eq("profile_id", str(profile_id))
+            .limit(1)
+        )
+        if not applications:
+            raise HTTPException(404, "Application not found")
         return applications[0]
 
     def save_draft_application(
@@ -290,6 +358,33 @@ class Database:
                 "body": body,
             })
         )
+        if direction == "inbound":
+            # if an inbound email was added - trigger agent to process the email and decide if
+            # actions needs to be taken
+            from services.inbound_email_service import inbound_email_service
+            emails[0]["_notification"] = (
+                inbound_email_service.process_inbound_email(
+                    profile_id=profile_id,
+                    email_id=UUID(str(emails[0]["id"])),
+                )
+            )
+
+        return emails[0]
+
+    def get_email(self, profile_id: UUID, email_id: UUID) -> dict:
+        emails = _execute(
+            self._get_client()
+            .table("emails")
+            .select(
+                "id,application_id,direction,type,subject,body,created_at,"
+                "applications!inner(profile_id)"
+            )
+            .eq("id", str(email_id))
+            .eq("applications.profile_id", str(profile_id))
+            .limit(1)
+        )
+        if not emails:
+            raise HTTPException(404, "Email not found")
         return emails[0]
 
     def get_calendar_events(

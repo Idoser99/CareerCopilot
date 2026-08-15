@@ -132,6 +132,18 @@ const agentSessions = [
   },
 ];
 
+const notifications = [
+  {
+    id: "d1111111-1111-4111-8111-111111111111",
+    profile_id: PRIMARY_PROFILE_ID,
+    title: "Interview scheduled",
+    message:
+      "Your Backend Software Engineer interview with Apple was scheduled for Saturday at 10:00 AM.",
+    is_read: false,
+    created_at: "2026-08-14T14:00:00Z",
+  },
+];
+
 function sendJson(response, status, data) {
   response.statusCode = status;
   response.setHeader("Content-Type", "application/json");
@@ -231,6 +243,48 @@ export function careerCopilotMock() {
 
         if (url.pathname === "/api/calendar") {
           sendJson(response, 200, profileId === PRIMARY_PROFILE_ID ? calendarEvents : []);
+          return;
+        }
+
+        if (url.pathname === "/api/notifications" && request.method === "GET") {
+          sendJson(
+            response,
+            200,
+            notifications.filter((notification) => notification.profile_id === profileId),
+          );
+          return;
+        }
+
+        if (
+          url.pathname === "/api/notifications/read-all" &&
+          request.method === "PATCH"
+        ) {
+          const updated = notifications.filter(
+            (notification) =>
+              notification.profile_id === profileId && !notification.is_read,
+          );
+          updated.forEach((notification) => {
+            notification.is_read = true;
+          });
+          sendJson(response, 200, updated);
+          return;
+        }
+
+        const notificationMatch = url.pathname.match(
+          /^\/api\/notifications\/([^/]+)\/read$/,
+        );
+        if (notificationMatch && request.method === "PATCH") {
+          const notification = notifications.find(
+            (candidate) =>
+              candidate.id === decodeURIComponent(notificationMatch[1]) &&
+              candidate.profile_id === profileId,
+          );
+          if (!notification) {
+            sendJson(response, 404, { detail: "Notification not found" });
+            return;
+          }
+          notification.is_read = true;
+          sendJson(response, 200, notification);
           return;
         }
 
