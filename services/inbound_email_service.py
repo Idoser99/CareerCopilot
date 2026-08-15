@@ -11,6 +11,8 @@ from data.db import database as db
 
 
 class InboundEmailService:
+    """agent trigger for an inbound email, runs when an email arrives and process it,
+    decide what to do and adds a notification so the user will know what happened"""
     def __init__(self, llm=None):
         self.llm = llm
 

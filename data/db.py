@@ -359,14 +359,16 @@ class Database:
             })
         )
         if direction == "inbound":
+            # if an inbound email was added - trigger agent to process the email and decide if
+            # actions needs to be taken
             from services.inbound_email_service import inbound_email_service
-
             emails[0]["_notification"] = (
                 inbound_email_service.process_inbound_email(
                     profile_id=profile_id,
                     email_id=UUID(str(emails[0]["id"])),
                 )
             )
+
         return emails[0]
 
     def get_email(self, profile_id: UUID, email_id: UUID) -> dict:

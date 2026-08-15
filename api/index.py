@@ -261,7 +261,7 @@ def mark_all_notifications_as_read(
 def simulate_application_decision(
         application_id: UUID,
         request: DemoApplicationDecisionRequest,
-        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None
 ) -> DemoApplicationDecisionResponse:
     profile_id = get_profile_id(header_profile_id)
     email, notification = demo_application_decision_service.simulate(
@@ -278,7 +278,7 @@ def simulate_application_decision(
 
 @app.get("/api/applications", response_model=list[ApplicationResponse])
 def get_applications(
-        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None
 ) -> list[ApplicationResponse]:
     profile_id = get_profile_id(header_profile_id)
     return db.get_applications(profile_id)

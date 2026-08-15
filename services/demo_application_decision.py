@@ -8,6 +8,7 @@ from data.db import database as db
 
 
 class DemoApplicationDecisionService:
+    """simulate an acceptance or rejection email from a potential employer"""
     def simulate(
         self,
         profile_id: UUID,

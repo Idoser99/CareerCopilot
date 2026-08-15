@@ -598,13 +598,41 @@ kbd {
   padding: 0 25px 18px;
 }
 
+.application-decision-message {
+  min-height: 0;
+  margin: 0 25px;
+  color: var(--color-text-soft);
+  font-size: 0.84rem;
+}
+
+.application-decision-message:not(:empty) {
+  min-height: 38px;
+  margin-bottom: 14px;
+  padding: 8px 11px;
+  border: 1px solid #c8e2f5;
+  border-radius: 9px;
+  background: var(--color-primary-soft);
+}
+
+.application-decision-message--success:not(:empty) {
+  color: var(--color-success);
+  border-color: #b9e7d2;
+  background: var(--color-success-soft);
+}
+
+.application-decision-message--error:not(:empty) {
+  color: var(--color-danger);
+  border-color: #f4cdcf;
+  background: var(--color-danger-soft);
+}
+
 .table-scroll {
   overflow-x: auto;
 }
 
 .data-table {
   width: 100%;
-  min-width: 940px;
+  min-width: 1080px;
   border-collapse: collapse;
 }
 
@@ -642,6 +670,38 @@ kbd {
   width: 34px;
   height: 34px;
   font-size: 0.78rem;
+}
+
+.application-decision-actions {
+  display: flex;
+  gap: 7px;
+  min-width: max-content;
+}
+
+.application-decision-button {
+  min-height: 31px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 750;
+  transition: background var(--transition), border-color var(--transition), transform var(--transition);
+}
+
+.application-decision-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.application-decision-button--accept {
+  color: var(--color-success);
+  border-color: #b9e7d2;
+  background: var(--color-success-soft);
+}
+
+.application-decision-button--reject {
+  color: var(--color-danger);
+  border-color: #f4cdcf;
+  background: var(--color-danger-soft);
 }
 
 .email-layout {

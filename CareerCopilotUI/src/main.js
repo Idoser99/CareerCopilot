@@ -324,6 +324,7 @@ async function renderActiveView() {
     const cleanup = await renderView(container, {
       server: careerCopilotServer,
       signal: activeController.signal,
+      refreshNotifications: loadNotifications,
     });
 
     if (version !== renderVersion) {

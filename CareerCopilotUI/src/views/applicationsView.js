@@ -36,13 +36,34 @@ function renderRows(applications) {
           </td>
           <td>${escapeHtml(formatDateTime(application.submitted_at))}</td>
           <td>${escapeHtml(formatDateTime(application.created_at))}</td>
+          <td>
+            <div class="application-decision-actions">
+              <button
+                class="application-decision-button application-decision-button--accept"
+                type="button"
+                data-application-id="${escapeHtml(application.id)}"
+                data-decision="accepted"
+                aria-label="Simulate acceptance for ${escapeHtml(application.job_title)} at ${escapeHtml(application.company)}"
+              >Accept</button>
+              <button
+                class="application-decision-button application-decision-button--reject"
+                type="button"
+                data-application-id="${escapeHtml(application.id)}"
+                data-decision="rejected"
+                aria-label="Simulate rejection for ${escapeHtml(application.job_title)} at ${escapeHtml(application.company)}"
+              >Reject</button>
+            </div>
+          </td>
         </tr>
       `,
     )
     .join("");
 }
 
-export async function renderApplicationsView(container, { server, signal }) {
+export async function renderApplicationsView(
+  container,
+  { server, signal, refreshNotifications },
+) {
   container.innerHTML = `
     <section class="page-heading page-heading--with-control">
       <div>
@@ -69,6 +90,7 @@ export async function renderApplicationsView(container, { server, signal }) {
         </div>
         <span id="application-count" class="badge badge--info">—</span>
       </div>
+      <div id="application-decision-message" class="application-decision-message" aria-live="polite"></div>
       <div id="applications-content">${renderLoading("Loading applications…")}</div>
     </section>
   `;
@@ -76,7 +98,13 @@ export async function renderApplicationsView(container, { server, signal }) {
   const filter = container.querySelector("#application-status-filter");
   const content = container.querySelector("#applications-content");
   const count = container.querySelector("#application-count");
+  const decisionMessage = container.querySelector("#application-decision-message");
   let requestNumber = 0;
+
+  function showDecisionMessage(message, type = "working") {
+    decisionMessage.className = `application-decision-message application-decision-message--${type}`;
+    decisionMessage.textContent = message;
+  }
 
   async function loadApplications(status) {
     const currentRequest = ++requestNumber;
@@ -115,6 +143,7 @@ export async function renderApplicationsView(container, { server, signal }) {
                 <th>Status</th>
                 <th>Submitted</th>
                 <th>Created</th>
+                <th>Demo decision</th>
               </tr>
             </thead>
             <tbody>${renderRows(applications)}</tbody>
@@ -133,6 +162,43 @@ export async function renderApplicationsView(container, { server, signal }) {
     }
   }
 
+  async function handleDecision(event) {
+    const button = event.target.closest("[data-decision]");
+    if (!button) return;
+
+    const { applicationId, decision } = button.dataset;
+    const buttons = content.querySelectorAll("[data-decision]");
+    buttons.forEach((candidate) => { candidate.disabled = true; });
+    button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span>';
+    showDecisionMessage(
+      `Simulating ${decision} email and running CareerCopilot…`,
+    );
+
+    try {
+      const response = await server.simulateApplicationDecision(
+        applicationId,
+        decision,
+        { signal },
+      );
+      if (signal.aborted) return;
+
+      await Promise.all([
+        loadApplications(filter.value),
+        refreshNotifications?.(),
+      ]);
+      showDecisionMessage(
+        response.notification?.message || "The application update was processed.",
+        "success",
+      );
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      buttons.forEach((candidate) => { candidate.disabled = false; });
+      button.textContent = decision === "accepted" ? "Accept" : "Reject";
+      showDecisionMessage(error.message, "error");
+    }
+  }
+
   filter.addEventListener("change", () => loadApplications(filter.value));
+  content.addEventListener("click", handleDecision);
   await loadApplications("all");
 }
