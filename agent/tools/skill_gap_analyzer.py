@@ -16,6 +16,7 @@ from pydantic import (
 )
 
 from agent.tools.base_tool import BaseTool
+from agent.agent_session import AgentSession
 from agent.tools.tool_response import ToolResponse
 from data.db import database as db
 from api.schemas import ExecutionStep
@@ -175,12 +176,8 @@ class SkillGapAnalyzer(BaseTool):
             steps=[
                 ExecutionStep(
                     module="Skill Gap Analyzer",
-                    prompt={
-                        "system": SKILL_GAP_ANALYZER_PROMPT,
-                        "job_description": job_description,
-                        "cv": cv,
-                    },
-                    response=content,
+                    prompt={"messages": AgentSession.format_messages(messages)},
+                    response={"role": "assistant", "content": content},
                 )
             ],
         )

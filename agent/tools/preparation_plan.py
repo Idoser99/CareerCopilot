@@ -16,6 +16,7 @@ from pydantic import (
 )
 
 from agent.tools.base_tool import BaseTool
+from agent.agent_session import AgentSession
 from agent.tools.tool_response import ToolResponse
 from data.db import database as db
 from api.schemas import ExecutionStep
@@ -280,11 +281,8 @@ class PreparationPlan(BaseTool):
             steps=[
                 ExecutionStep(
                     module="Preparation Plan",
-                    prompt={
-                        "system": PREPARATION_PLAN_PROMPT,
-                        **context,
-                    },
-                    response={"content": content},
+                    prompt={"messages": AgentSession.format_messages(messages)},
+                    response=AgentSession.format_messages([llm_response])[0],
                 )
             ],
         )
