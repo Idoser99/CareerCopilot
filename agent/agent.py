@@ -28,12 +28,14 @@ class Agent:
 
             # llm raw response based on session history
             prompt_msgs = [message.model_dump() for message in session.messages]
+            formatted_prompt_msgs = AgentSession.format_messages(session.messages)
             response = self.llm.invoke(prompt_msgs)
             session.add_ai_message(response)
+            formatted_response = AgentSession.format_messages([response])[0]
             steps.append(ExecutionStep(
                 module="CareerCopilot",
-                prompt={"messages": prompt_msgs},
-                response={"content": response.content, "tool_calls": response.tool_calls}
+                prompt={"messages": formatted_prompt_msgs},
+                response=formatted_response,
             ))
 
             # if agent did not request any tool then return

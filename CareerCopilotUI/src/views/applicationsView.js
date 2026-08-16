@@ -52,13 +52,33 @@ function renderRows(applications) {
             ${
               hasTailoredCv
                 ? `<button
-                    class="button button--small button--secondary"
+                    class="button button--secondary application-cv-download-button"
                     type="button"
                     data-download-application-cv="${escapeHtml(application.id)}"
                     aria-label="Download tailored CV for ${escapeHtml(application.job_title)}"
-                  >Download DOCX</button>`
+                  >Download</button>`
                 : "—"
             }
+          </td>
+          <td>
+            ${application.status === "pending" ? `
+              <div class="application-decision-actions">
+                <button
+                  class="application-decision-button application-decision-button--accept"
+                  type="button"
+                  data-application-id="${escapeHtml(application.id)}"
+                  data-decision="accepted"
+                  aria-label="Simulate acceptance for ${escapeHtml(application.job_title)} at ${escapeHtml(application.company)}"
+                >Accept</button>
+                <button
+                  class="application-decision-button application-decision-button--reject"
+                  type="button"
+                  data-application-id="${escapeHtml(application.id)}"
+                  data-decision="rejected"
+                  aria-label="Simulate rejection for ${escapeHtml(application.job_title)} at ${escapeHtml(application.company)}"
+                >Reject</button>
+              </div>
+            ` : "—"}
           </td>
         </tr>
       `;
@@ -66,7 +86,10 @@ function renderRows(applications) {
     .join("");
 }
 
-export async function renderApplicationsView(container, { server, signal }) {
+export async function renderApplicationsView(
+  container,
+  { server, signal, refreshNotifications },
+) {
   container.innerHTML = `
     <section class="page-heading page-heading--with-control">
       <div>
@@ -93,7 +116,7 @@ export async function renderApplicationsView(container, { server, signal }) {
         </div>
         <span id="application-count" class="badge badge--info">—</span>
       </div>
-      <div id="application-download-status" class="inline-message" aria-live="polite"></div>
+      <div id="application-action-message" class="application-decision-message" aria-live="polite"></div>
       <div id="applications-content">${renderLoading("Loading applications…")}</div>
     </section>
   `;
@@ -101,13 +124,18 @@ export async function renderApplicationsView(container, { server, signal }) {
   const filter = container.querySelector("#application-status-filter");
   const content = container.querySelector("#applications-content");
   const count = container.querySelector("#application-count");
-  const downloadStatus = container.querySelector("#application-download-status");
+  const actionMessage = container.querySelector("#application-action-message");
   let requestNumber = 0;
+
+  function showActionMessage(message, type = "working") {
+    actionMessage.className = `application-decision-message application-decision-message--${type}`;
+    actionMessage.textContent = message;
+  }
 
   async function loadApplications(status) {
     const currentRequest = ++requestNumber;
     content.innerHTML = renderLoading("Loading applications…");
-    downloadStatus.textContent = "";
+    showActionMessage("");
 
     try {
       const response = await server.getApplications(status, { signal });
@@ -143,6 +171,7 @@ export async function renderApplicationsView(container, { server, signal }) {
                 <th>Submitted</th>
                 <th>Created</th>
                 <th>CV</th>
+                <th>Demo decision</th>
               </tr>
             </thead>
             <tbody>${renderRows(applications)}</tbody>
@@ -161,15 +190,14 @@ export async function renderApplicationsView(container, { server, signal }) {
     }
   }
 
-  content.addEventListener("click", async (event) => {
+  async function handleDownload(event) {
     const button = event.target.closest?.("[data-download-application-cv]");
     if (!button) return;
 
     const applicationId = button.dataset.downloadApplicationCv;
     button.disabled = true;
-    button.textContent = "Preparing...";
-    downloadStatus.className = "inline-message inline-message--working";
-    downloadStatus.textContent = "Preparing the tailored CV...";
+    button.textContent = "Preparing…";
+    showActionMessage("Preparing the tailored CV…");
 
     try {
       const { blob, filename } = await server.downloadApplicationCv(
@@ -179,20 +207,56 @@ export async function renderApplicationsView(container, { server, signal }) {
       if (signal.aborted) return;
 
       triggerBrowserDownload(blob, filename);
-      downloadStatus.className = "inline-message inline-message--success";
-      downloadStatus.textContent = `${filename} was downloaded.`;
+      showActionMessage(`${filename} was downloaded.`, "success");
     } catch (error) {
       if (error.name === "AbortError") return;
-      downloadStatus.className = "inline-message inline-message--error";
-      downloadStatus.textContent = error.message;
+      showActionMessage(error.message, "error");
     } finally {
       if (button.isConnected) {
         button.disabled = false;
-        button.textContent = "Download DOCX";
+        button.textContent = "Download";
       }
     }
-  });
+  }
+
+  async function handleDecision(event) {
+    const button = event.target.closest("[data-decision]");
+    if (!button) return;
+
+    const { applicationId, decision } = button.dataset;
+    const buttons = content.querySelectorAll("[data-decision]");
+    buttons.forEach((candidate) => { candidate.disabled = true; });
+    button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span>';
+    showActionMessage(
+      `Simulating ${decision} email and running CareerCopilot…`,
+    );
+
+    try {
+      const response = await server.simulateApplicationDecision(
+        applicationId,
+        decision,
+        { signal },
+      );
+      if (signal.aborted) return;
+
+      await Promise.all([
+        loadApplications(filter.value),
+        refreshNotifications?.(),
+      ]);
+      showActionMessage(
+        response.notification?.message || "The application update was processed.",
+        "success",
+      );
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      buttons.forEach((candidate) => { candidate.disabled = false; });
+      button.textContent = decision === "accepted" ? "Accept" : "Reject";
+      showActionMessage(error.message, "error");
+    }
+  }
 
   filter.addEventListener("change", () => loadApplications(filter.value));
+  content.addEventListener("click", handleDownload);
+  content.addEventListener("click", handleDecision);
   await loadApplications("all");
 }

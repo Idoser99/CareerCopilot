@@ -1,3 +1,4 @@
+import os
 from typing import Annotated
 from urllib.parse import quote
 from uuid import UUID
@@ -6,9 +7,9 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, Response
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-import os
 
 from data.db import database as db
+from api.agent_metadata import create_agent_info
 from api.schemas import (
     AgentInfoResponse,
     AgentSessionResponse,
@@ -16,14 +17,14 @@ from api.schemas import (
     ApplicationResponse,
     CalendarEventResponse,
     CvUploadRequest,
+    DemoApplicationDecisionRequest,
+    DemoApplicationDecisionResponse,
     EmailResponse,
     ExecuteRequest,
     ExecuteResponse,
-    ExecutionStep,
+    NotificationResponse,
     ProfileResponse,
     ProfileSummaryResponse,
-    PromptExample,
-    PromptTemplate,
     Student,
     TeamInfoResponse,
 )
@@ -35,6 +36,7 @@ from services.cv_document import (
     create_application_cv_docx,
     create_profile_cv_docx,
 )
+from services.demo_application_decision import demo_application_decision_service
 
 load_dotenv()
 
@@ -58,46 +60,18 @@ def ping():
 @app.get("/api/team_info", response_model=TeamInfoResponse)
 def team_info() -> TeamInfoResponse:
     return TeamInfoResponse(
-        group_batch_order_number="1_{order#}",
-        team_name="Ido & Yarden",
+        group_batch_order_number="1_5",
+        team_name="Ido & Yarden - CareerCopilot",
         students=[
             Student(name="Ido Oserovitz", email="idoser99@gmail.com"),
-            Student(name="Yarden", email="yarden@gmail.com"),
+            Student(name="Yarden Basharim", email="basharimyar@gmail.com"),
         ],
     )
 
 
 @app.get("/api/agent_info", response_model=AgentInfoResponse)
 def agent_info() -> AgentInfoResponse:
-    return AgentInfoResponse(
-        description="…",
-        purpose="…",
-        prompt_template=PromptTemplate(template="…"),
-        prompt_examples=[
-            PromptExample(
-                prompt="Example prompt 1…",
-                full_response="Full response your agent returns…",
-                steps=[
-                    ExecutionStep(
-                        module="CV Tailoring",
-                        prompt={},
-                        response={},
-                    )
-                ],
-            ),
-            PromptExample(
-                prompt="Example prompt 2…",
-                full_response="Full response your agent returns…",
-                steps=[
-                    ExecutionStep(
-                        module="Submit Application",
-                        prompt={},
-                        response={},
-                    )
-                ],
-            ),
-        ],
-    )
+    return create_agent_info()
 
 
 @app.get("/api/model_architecture", response_class=FileResponse)
@@ -232,9 +206,53 @@ def get_profile(
     return ProfileResponse(**db.get_profile(profile_id))
 
 
+@app.get("/api/notifications", response_model=list[NotificationResponse])
+def get_notifications(
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> list[NotificationResponse]:
+    profile_id = get_profile_id(header_profile_id)
+    return db.list_notifications(profile_id)
+
+
+@app.patch("/api/notifications/{notification_id}/read", response_model=NotificationResponse)
+def mark_notification_as_read(
+        notification_id: UUID,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> NotificationResponse:
+    profile_id = get_profile_id(header_profile_id)
+    return db.mark_notification_as_read(profile_id, notification_id)
+
+
+@app.patch("/api/notifications/read-all", response_model=list[NotificationResponse])
+def mark_all_notifications_as_read(
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> list[NotificationResponse]:
+    profile_id = get_profile_id(header_profile_id)
+    return db.mark_all_notifications_as_read(profile_id)
+
+
+@app.post("/api/demo/applications/{application_id}/decision", response_model=DemoApplicationDecisionResponse)
+def simulate_application_decision(
+        application_id: UUID,
+        request: DemoApplicationDecisionRequest,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None
+) -> DemoApplicationDecisionResponse:
+    profile_id = get_profile_id(header_profile_id)
+    email, notification = demo_application_decision_service.simulate(
+        profile_id=profile_id,
+        application_id=application_id,
+        decision=request.decision,
+    )
+    return DemoApplicationDecisionResponse(
+        decision=request.decision,
+        email=email,
+        notification=notification,
+    )
+
+
 @app.get("/api/applications", response_model=list[ApplicationResponse])
 def get_applications(
-        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None
 ) -> list[ApplicationResponse]:
     profile_id = get_profile_id(header_profile_id)
     return db.get_applications(profile_id)

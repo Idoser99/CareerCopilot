@@ -43,6 +43,10 @@ class ExecuteRequest(BaseModel):
     prompt: str
 
 
+class DemoApplicationDecisionRequest(BaseModel):
+    decision: Literal["accepted", "rejected"]
+
+
 class ExecuteResponse(BaseModel):
     status: str
     error: str | None
@@ -83,6 +87,15 @@ class CvUploadRequest(BaseModel):
     cv_text: str
 
 
+class NotificationResponse(BaseModel):
+    id: UUID
+    profile_id: UUID
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+
+
 class ApplicationResponse(BaseModel):
     id: UUID
     profile_id: UUID
@@ -105,6 +118,12 @@ class EmailResponse(BaseModel):
     subject: str
     body: str
     created_at: datetime
+
+
+class DemoApplicationDecisionResponse(BaseModel):
+    decision: Literal["accepted", "rejected"]
+    email: EmailResponse
+    notification: NotificationResponse
 
 
 class CalendarEventResponse(BaseModel):
