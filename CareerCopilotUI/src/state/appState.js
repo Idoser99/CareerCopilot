@@ -31,7 +31,8 @@ class AppState {
     );
 
     if (!storedProfileExists) {
-      this.selectProfile(this.profiles[0]?.id || null);
+      const defaultProfile = this.profiles.find((profile) => profile.is_default);
+      this.selectProfile(defaultProfile?.id || this.profiles[0]?.id || null);
     }
 
     return this.profileId;

@@ -193,6 +193,7 @@ def get_profiles() -> list[ProfileSummaryResponse]:
             name=profile["name"],
             email=profile["email"],
             has_cv=bool((profile.get("cv_text") or "").strip()),
+            is_default=str(profile["id"]) == default_profile_id,
         )
         for profile in profiles
     ]
