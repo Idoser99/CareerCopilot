@@ -30,11 +30,17 @@ class RecordApplicationDecision(BaseTool):
         if email["type"] != decision:
             raise ValueError("Decision does not match the inbound email")
 
-        application = db.set_application_status(
-            profile_id=self.profile_id,
-            application_id=UUID(str(email["application_id"])),
-            status=decision,
-        )
+        application_id = UUID(str(email["application_id"]))
+        application = db.get_application(self.profile_id, application_id)
+
+        # An interview may already have been scheduled from this acceptance email.
+        # Do not let a later acceptance tool call regress the workflow state.
+        if not (decision == "accepted" and application["status"] == "scheduled"):
+            application = db.set_application_status(
+                profile_id=self.profile_id,
+                application_id=application_id,
+                status=decision,
+            )
         return ToolResponse(content={
             "application_id": application["id"],
             "status": application["status"],
