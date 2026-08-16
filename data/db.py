@@ -146,6 +146,22 @@ class Database:
             .order("created_at", desc=True)
         )
 
+    def get_application(self, profile_id: UUID, application_id: UUID) -> dict:
+        applications = _execute(
+            self._get_client()
+            .table("applications")
+            .select(
+                "id,profile_id,job_id,job_title,company,tailored_cv_text,"
+                "status,submitted_at,created_at"
+            )
+            .eq("id", str(application_id))
+            .eq("profile_id", str(profile_id))
+            .limit(1)
+        )
+        if not applications:
+            raise HTTPException(404, "Application not found")
+        return applications[0]
+
     def get_application_for_job(self, profile_id: UUID, job_id: str) -> dict:
         applications = _execute(
             self._get_client()

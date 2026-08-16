@@ -16,10 +16,22 @@ const STATUSES = [
   "scheduled",
 ];
 
+function triggerBrowserDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function renderRows(applications) {
   return applications
-    .map(
-      (application) => `
+    .map((application) => {
+      const hasTailoredCv = Boolean(application.tailored_cv_text?.trim());
+      return `
         <tr>
           <td>
             <div class="company-cell">
@@ -36,9 +48,21 @@ function renderRows(applications) {
           </td>
           <td>${escapeHtml(formatDateTime(application.submitted_at))}</td>
           <td>${escapeHtml(formatDateTime(application.created_at))}</td>
+          <td>
+            ${
+              hasTailoredCv
+                ? `<button
+                    class="button button--small button--secondary"
+                    type="button"
+                    data-download-application-cv="${escapeHtml(application.id)}"
+                    aria-label="Download tailored CV for ${escapeHtml(application.job_title)}"
+                  >Download DOCX</button>`
+                : "—"
+            }
+          </td>
         </tr>
-      `,
-    )
+      `;
+    })
     .join("");
 }
 
@@ -69,6 +93,7 @@ export async function renderApplicationsView(container, { server, signal }) {
         </div>
         <span id="application-count" class="badge badge--info">—</span>
       </div>
+      <div id="application-download-status" class="inline-message" aria-live="polite"></div>
       <div id="applications-content">${renderLoading("Loading applications…")}</div>
     </section>
   `;
@@ -76,11 +101,13 @@ export async function renderApplicationsView(container, { server, signal }) {
   const filter = container.querySelector("#application-status-filter");
   const content = container.querySelector("#applications-content");
   const count = container.querySelector("#application-count");
+  const downloadStatus = container.querySelector("#application-download-status");
   let requestNumber = 0;
 
   async function loadApplications(status) {
     const currentRequest = ++requestNumber;
     content.innerHTML = renderLoading("Loading applications…");
+    downloadStatus.textContent = "";
 
     try {
       const response = await server.getApplications(status, { signal });
@@ -115,6 +142,7 @@ export async function renderApplicationsView(container, { server, signal }) {
                 <th>Status</th>
                 <th>Submitted</th>
                 <th>Created</th>
+                <th>CV</th>
               </tr>
             </thead>
             <tbody>${renderRows(applications)}</tbody>
@@ -132,6 +160,38 @@ export async function renderApplicationsView(container, { server, signal }) {
       `;
     }
   }
+
+  content.addEventListener("click", async (event) => {
+    const button = event.target.closest?.("[data-download-application-cv]");
+    if (!button) return;
+
+    const applicationId = button.dataset.downloadApplicationCv;
+    button.disabled = true;
+    button.textContent = "Preparing...";
+    downloadStatus.className = "inline-message inline-message--working";
+    downloadStatus.textContent = "Preparing the tailored CV...";
+
+    try {
+      const { blob, filename } = await server.downloadApplicationCv(
+        applicationId,
+        { signal },
+      );
+      if (signal.aborted) return;
+
+      triggerBrowserDownload(blob, filename);
+      downloadStatus.className = "inline-message inline-message--success";
+      downloadStatus.textContent = `${filename} was downloaded.`;
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      downloadStatus.className = "inline-message inline-message--error";
+      downloadStatus.textContent = error.message;
+    } finally {
+      if (button.isConnected) {
+        button.disabled = false;
+        button.textContent = "Download DOCX";
+      }
+    }
+  });
 
   filter.addEventListener("change", () => loadApplications(filter.value));
   await loadApplications("all");

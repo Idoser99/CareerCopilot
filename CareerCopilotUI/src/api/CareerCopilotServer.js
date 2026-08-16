@@ -80,6 +80,16 @@ export class CareerCopilotServer {
     });
   }
 
+  downloadApplicationCv(applicationId, { signal } = {}) {
+    return this.#request(
+      `/applications/${encodeURIComponent(applicationId)}/cv/download`,
+      {
+        responseType: "blob",
+        signal,
+      },
+    );
+  }
+
   getEmails({ signal } = {}) {
     return this.#request("/emails", { signal });
   }

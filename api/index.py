@@ -30,7 +30,11 @@ from api.schemas import (
 from agent.registry import create_registry
 from agent.agent import Agent
 from agent.agent_session import AgentSession
-from services.cv_document import CVWriteError, create_profile_cv_docx
+from services.cv_document import (
+    CVWriteError,
+    create_application_cv_docx,
+    create_profile_cv_docx,
+)
 
 load_dotenv()
 
@@ -234,6 +238,26 @@ def get_applications(
 ) -> list[ApplicationResponse]:
     profile_id = get_profile_id(header_profile_id)
     return db.get_applications(profile_id)
+
+
+@app.get("/api/applications/{application_id}/cv/download")
+def download_application_cv(
+        application_id: UUID,
+        header_profile_id: Annotated[str | None, PROFILE_HEADER] = None,
+) -> Response:
+    profile_id = get_profile_id(header_profile_id)
+    profile = db.get_profile(profile_id)
+    application = db.get_application(profile_id, application_id)
+    try:
+        document, filename = create_application_cv_docx(profile, application)
+    except CVWriteError as error:
+        raise HTTPException(404, error.message) from error
+
+    return Response(
+        content=document.getvalue(),
+        media_type=("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        headers={"Content-Disposition": (f"attachment; filename*=UTF-8''{quote(filename)}")}
+    )
 
 
 @app.get("/api/emails", response_model=list[EmailResponse])
