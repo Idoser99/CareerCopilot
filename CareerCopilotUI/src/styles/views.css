@@ -743,6 +743,13 @@ kbd {
   font-size: 0.78rem;
 }
 
+.application-cv-download-button {
+  min-height: 29px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+
 .application-decision-actions {
   display: flex;
   gap: 7px;

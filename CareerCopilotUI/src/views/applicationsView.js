@@ -16,10 +16,22 @@ const STATUSES = [
   "scheduled",
 ];
 
+function triggerBrowserDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function renderRows(applications) {
   return applications
-    .map(
-      (application) => `
+    .map((application) => {
+      const hasTailoredCv = Boolean(application.tailored_cv_text?.trim());
+      return `
         <tr>
           <td>
             <div class="company-cell">
@@ -36,6 +48,18 @@ function renderRows(applications) {
           </td>
           <td>${escapeHtml(formatDateTime(application.submitted_at))}</td>
           <td>${escapeHtml(formatDateTime(application.created_at))}</td>
+          <td>
+            ${
+              hasTailoredCv
+                ? `<button
+                    class="button button--secondary application-cv-download-button"
+                    type="button"
+                    data-download-application-cv="${escapeHtml(application.id)}"
+                    aria-label="Download tailored CV for ${escapeHtml(application.job_title)}"
+                  >Download</button>`
+                : "—"
+            }
+          </td>
           <td>
             ${application.status === "pending" ? `
               <div class="application-decision-actions">
@@ -57,8 +81,8 @@ function renderRows(applications) {
             ` : "—"}
           </td>
         </tr>
-      `,
-    )
+      `;
+    })
     .join("");
 }
 
@@ -92,7 +116,7 @@ export async function renderApplicationsView(
         </div>
         <span id="application-count" class="badge badge--info">—</span>
       </div>
-      <div id="application-decision-message" class="application-decision-message" aria-live="polite"></div>
+      <div id="application-action-message" class="application-decision-message" aria-live="polite"></div>
       <div id="applications-content">${renderLoading("Loading applications…")}</div>
     </section>
   `;
@@ -100,17 +124,18 @@ export async function renderApplicationsView(
   const filter = container.querySelector("#application-status-filter");
   const content = container.querySelector("#applications-content");
   const count = container.querySelector("#application-count");
-  const decisionMessage = container.querySelector("#application-decision-message");
+  const actionMessage = container.querySelector("#application-action-message");
   let requestNumber = 0;
 
-  function showDecisionMessage(message, type = "working") {
-    decisionMessage.className = `application-decision-message application-decision-message--${type}`;
-    decisionMessage.textContent = message;
+  function showActionMessage(message, type = "working") {
+    actionMessage.className = `application-decision-message application-decision-message--${type}`;
+    actionMessage.textContent = message;
   }
 
   async function loadApplications(status) {
     const currentRequest = ++requestNumber;
     content.innerHTML = renderLoading("Loading applications…");
+    showActionMessage("");
 
     try {
       const response = await server.getApplications(status, { signal });
@@ -145,6 +170,7 @@ export async function renderApplicationsView(
                 <th>Status</th>
                 <th>Submitted</th>
                 <th>Created</th>
+                <th>CV</th>
                 <th>Demo decision</th>
               </tr>
             </thead>
@@ -164,6 +190,35 @@ export async function renderApplicationsView(
     }
   }
 
+  async function handleDownload(event) {
+    const button = event.target.closest?.("[data-download-application-cv]");
+    if (!button) return;
+
+    const applicationId = button.dataset.downloadApplicationCv;
+    button.disabled = true;
+    button.textContent = "Preparing…";
+    showActionMessage("Preparing the tailored CV…");
+
+    try {
+      const { blob, filename } = await server.downloadApplicationCv(
+        applicationId,
+        { signal },
+      );
+      if (signal.aborted) return;
+
+      triggerBrowserDownload(blob, filename);
+      showActionMessage(`${filename} was downloaded.`, "success");
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      showActionMessage(error.message, "error");
+    } finally {
+      if (button.isConnected) {
+        button.disabled = false;
+        button.textContent = "Download";
+      }
+    }
+  }
+
   async function handleDecision(event) {
     const button = event.target.closest("[data-decision]");
     if (!button) return;
@@ -172,7 +227,7 @@ export async function renderApplicationsView(
     const buttons = content.querySelectorAll("[data-decision]");
     buttons.forEach((candidate) => { candidate.disabled = true; });
     button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span>';
-    showDecisionMessage(
+    showActionMessage(
       `Simulating ${decision} email and running CareerCopilot…`,
     );
 
@@ -188,7 +243,7 @@ export async function renderApplicationsView(
         loadApplications(filter.value),
         refreshNotifications?.(),
       ]);
-      showDecisionMessage(
+      showActionMessage(
         response.notification?.message || "The application update was processed.",
         "success",
       );
@@ -196,11 +251,12 @@ export async function renderApplicationsView(
       if (error.name === "AbortError") return;
       buttons.forEach((candidate) => { candidate.disabled = false; });
       button.textContent = decision === "accepted" ? "Accept" : "Reject";
-      showDecisionMessage(error.message, "error");
+      showActionMessage(error.message, "error");
     }
   }
 
   filter.addEventListener("change", () => loadApplications(filter.value));
+  content.addEventListener("click", handleDownload);
   content.addEventListener("click", handleDecision);
   await loadApplications("all");
 }

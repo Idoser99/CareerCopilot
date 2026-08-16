@@ -50,6 +50,24 @@ WINDOWS_RESERVED_FILENAMES = {
     *(f"COM{number}" for number in range(1, 10)),
     *(f"LPT{number}" for number in range(1, 10)),
 }
+COMMON_SECTION_HEADINGS = {
+    "professional summary",
+    "profile summary",
+    "summary",
+    "education",
+    "experience",
+    "professional experience",
+    "work experience",
+    "projects",
+    "key projects",
+    "technical skills",
+    "skills",
+    "certifications",
+    "certifications & training",
+    "awards",
+    "leadership",
+    "languages",
+}
 
 NonEmptyText = Annotated[
     str,
@@ -328,7 +346,10 @@ def _is_section_heading(line: str) -> bool:
     return (
         bool(letters)
         and len(line) <= 60
-        and line == line.upper()
+        and (
+            line == line.upper()
+            or line.casefold() in COMMON_SECTION_HEADINGS
+        )
         and not line.startswith(("-", "*", "•"))
     )
 
@@ -475,3 +496,35 @@ def create_profile_cv_docx(profile: Mapping[str, Any]) -> tuple[BytesIO, str]:
     verify_generated_docx(output, payload_data, ordered_sections)
     output.seek(0)
     return output, filename
+
+
+def create_application_cv_docx(
+    profile: Mapping[str, Any],
+    application: Mapping[str, Any],
+) -> tuple[BytesIO, str]:
+    """Create a DOCX from the tailored CV text saved on an application."""
+    tailored_cv_text = str(application.get("tailored_cv_text") or "").strip()
+    if not tailored_cv_text:
+        raise CVWriteError(
+            "tailored_cv_text",
+            "No tailored CV draft was found for this application",
+        )
+
+    application_profile = dict(profile)
+    application_profile["cv_text"] = tailored_cv_text
+    output, _ = create_profile_cv_docx(application_profile)
+
+    filename_parts = [
+        profile.get("name"),
+        application.get("company"),
+        application.get("job_title"),
+        "CV",
+    ]
+    filename = "_".join(
+        INVALID_FILENAME_CHARACTERS.sub("_", str(part))
+        .replace("..", "_")
+        .strip(" ._")
+        for part in filename_parts
+        if part
+    )
+    return output, _sanitize_filename(filename)
