@@ -73,6 +73,7 @@ class ProfileSummaryResponse(BaseModel):
     name: str
     email: str
     has_cv: bool
+    is_default: bool
 
 
 class ProfileResponse(BaseModel):
