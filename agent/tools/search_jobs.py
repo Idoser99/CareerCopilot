@@ -79,6 +79,9 @@ class SearchJobsInput(BaseModel):
     companies: list[str] = Field(
         default_factory=list, description="Only return these companies when supplied"
     )
+    skills: list[str] = Field(
+        default_factory=list, description="Preferred skills, for example Python or SQL"
+    )
     job_id: str | None = Field(
         default=None, description="Exact job ID that must match when supplied"
     )
@@ -149,7 +152,7 @@ def find_relevant_jobs(preferences: dict, max_results: int = 10) -> list[dict]:
 
     fields = (
         "job_titles", "locations", "workplace_types", "seniority_levels",
-        "employment_types", "companies", "excluded_job_ids",
+        "employment_types", "companies", "skills", "excluded_job_ids",
     )
     wanted = {}
     for field in fields:
@@ -209,6 +212,10 @@ def find_relevant_jobs(preferences: dict, max_results: int = 10) -> list[dict]:
 
         score = get_title_score(title, wanted["job_titles"])
         matched_preferences = ["title"] if score else []
+        skill_matches = accepted["skills"] & {
+            normalize(skill) for skill in job.get("skills", [])
+        }
+        score += 5 * len(skill_matches)
 
         score_fields = (
             ("locations", 10, "location"),
@@ -291,13 +298,17 @@ class SearchJobs(BaseTool):
         seniority_levels: list[str] | None = None,
         employment_types: list[str] | None = None,
         companies: list[str] | None = None,
+        skills: list[str] | None = None,
         job_id: str | None = None,
         excluded_job_ids: list[str] | None = None,
         retrieve_fields: list[str] | None = None,
         minimum_score: float = 1,
         max_results: int = 10,
     ) -> ToolResponse:
-        if not keyword.strip():
+        if keyword is None and job_id is None:
+            raise ValueError("keyword and job id cannot be both empty ")
+        
+        if keyword is not None and not keyword.strip():
             raise ValueError("keyword cannot be empty")
 
         retrieve_fields = retrieve_fields or []
@@ -314,6 +325,7 @@ class SearchJobs(BaseTool):
             "seniority_levels": seniority_levels or [],
             "employment_types": employment_types or [],
             "companies": companies or [],
+            "skills": skills or [],
             "job_id": job_id,
             "excluded_job_ids": excluded_job_ids or [],
             "minimum_score": minimum_score,
