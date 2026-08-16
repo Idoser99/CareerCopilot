@@ -181,14 +181,21 @@ function renderNotifications() {
 }
 
 async function loadNotifications() {
+  const profileId = careerCopilotServer.getProfileId();
   const currentRequest = ++notificationRequestNumber;
   try {
     const response = await careerCopilotServer.getNotifications();
-    if (currentRequest !== notificationRequestNumber) return;
+    if (
+      currentRequest !== notificationRequestNumber ||
+      profileId !== careerCopilotServer.getProfileId()
+    ) return;
     notifications = Array.isArray(response) ? response : [];
     renderNotifications();
   } catch (error) {
-    if (currentRequest !== notificationRequestNumber) return;
+    if (
+      currentRequest !== notificationRequestNumber ||
+      profileId !== careerCopilotServer.getProfileId()
+    ) return;
     const list = root.querySelector("#notification-list");
     if (list) {
       list.innerHTML = `
@@ -285,14 +292,16 @@ async function loadProfiles() {
   updateProfileSelector();
 }
 
-function handleProfileChange(event) {
+async function handleProfileChange(event) {
   appState.selectProfile(event.target.value);
   careerCopilotServer.setProfileId(appState.profileId);
   notifications = [];
   renderNotifications();
-  loadNotifications();
   closeNotifications();
-  renderActiveView();
+  await Promise.all([
+    loadNotifications(),
+    renderActiveView(),
+  ]);
 }
 
 async function renderActiveView() {

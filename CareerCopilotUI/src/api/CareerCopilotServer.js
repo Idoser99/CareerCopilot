@@ -34,7 +34,7 @@ export class CareerCopilotServer {
   }
 
   getNotifications({ signal } = {}) {
-    return this.#request("/notifications", { signal });
+    return this.#request("/notifications", { cache: "no-store", signal });
   }
 
   markNotificationAsRead(notificationId, { signal } = {}) {
@@ -136,6 +136,7 @@ export class CareerCopilotServer {
       responseType = "json",
       extraHeaders = {},
       includeSessionId = false,
+      cache = "default",
       signal,
     } = {},
   ) {
@@ -159,6 +160,7 @@ export class CareerCopilotServer {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
+        cache,
         signal,
       });
     } catch (error) {
