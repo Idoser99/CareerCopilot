@@ -53,6 +53,7 @@ WINDOWS_RESERVED_FILENAMES = {
 COMMON_SECTION_HEADINGS = {
     "professional summary",
     "profile summary",
+    "profile",
     "summary",
     "education",
     "experience",
@@ -81,6 +82,7 @@ class CVModel(BaseModel):
 
 class ContactInformation(CVModel):
     full_name: NonEmptyText = Field(description="Candidate's full name")
+    headline: str | None = Field(default=None, description="Role headline")
     location: str | None = Field(default=None, description="City, region, or country")
     email: str | None = Field(default=None, description="Email address as display text")
     phone: str | None = Field(default=None, description="Phone number as display text")
@@ -374,6 +376,28 @@ def _split_cv_text(cv_text: str) -> tuple[list[str], list[tuple[str, list[str]]]
     return preamble, sections
 
 
+def _looks_like_location(value: str) -> bool:
+    words = value.split()
+    return (
+        value.casefold() == "remote"
+        or (
+            "," in value
+            and len(value) <= 80
+            and len(words) <= 8
+            and not value.endswith((".", "!", "?"))
+        )
+    )
+
+
+def _looks_like_role_headline(value: str) -> bool:
+    return (
+        bool(value)
+        and len(value) <= 80
+        and len(value.split()) <= 12
+        and not value.endswith((".", "!", "?"))
+    )
+
+
 def _build_contact(
     profile: Mapping[str, Any],
     preamble: list[str],
@@ -385,6 +409,7 @@ def _build_contact(
 
     contact: dict[str, str | None] = {
         "full_name": full_name,
+        "headline": None,
         "email": str(profile["email"]),
         "location": None,
         "phone": None,
@@ -392,7 +417,7 @@ def _build_contact(
         "github": None,
         "portfolio": None,
     }
-    headline: list[str] = []
+    summary_preamble: list[str] = []
     for line in remaining:
         for value in (part.strip() for part in line.split("|")):
             lower_value = value.lower()
@@ -406,12 +431,14 @@ def _build_contact(
                 contact["portfolio"] = value
             elif re.search(r"\+?\d[\d\s().-]{6,}", value):
                 contact["phone"] = value
-            elif contact["location"] is None and "," in value:
+            elif contact["location"] is None and _looks_like_location(value):
                 contact["location"] = value
+            elif contact["headline"] is None and _looks_like_role_headline(value):
+                contact["headline"] = value
             else:
-                headline.append(value)
+                summary_preamble.append(value)
 
-    return ContactInformation.model_validate(contact), headline
+    return ContactInformation.model_validate(contact), summary_preamble
 
 
 def _build_custom_blocks(lines: list[str]) -> list[CustomContentBlock]:
@@ -441,9 +468,14 @@ def _build_profile_payload(profile: Mapping[str, Any]) -> WriteCVInput:
         raise CVWriteError("cv_text", "No CV was found for this profile")
 
     preamble, parsed_sections = _split_cv_text(cv_text)
-    contact, headline = _build_contact(profile, preamble)
+    contact, summary_preamble = _build_contact(profile, preamble)
 
-    summary_titles = {"Professional Summary", "Profile Summary", "Summary"}
+    summary_titles = {
+        "Professional Summary",
+        "Profile Summary",
+        "Profile",
+        "Summary",
+    }
     summary_lines: list[str] = []
     remaining_sections: list[tuple[str, list[str]]] = []
     for title, lines in parsed_sections:
@@ -452,10 +484,22 @@ def _build_profile_payload(profile: Mapping[str, Any]) -> WriteCVInput:
         else:
             remaining_sections.append((title, lines))
 
-    if summary_lines:
-        professional_summary = "\n".join([*headline, *summary_lines])
-    elif headline:
-        professional_summary = "\n".join(headline)
+    summary_lines = [
+        line
+        for line in summary_lines
+        if line.casefold() not in {"profile", "professional profile"}
+    ]
+    if (
+        contact.headline is None
+        and summary_preamble
+        and summary_lines
+        and _looks_like_role_headline(summary_lines[0])
+    ):
+        contact = contact.model_copy(update={"headline": summary_lines.pop(0)})
+
+    summary_content = [*summary_preamble, *summary_lines]
+    if summary_content:
+        professional_summary = "\n".join(summary_content)
     else:
         professional_summary = cv_text
         remaining_sections = []

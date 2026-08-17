@@ -8,9 +8,11 @@ from docx.document import Document as DocumentType
 from docx.enum.section import WD_ORIENT
 from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Mm, Pt, RGBColor
 from docx.styles.style import ParagraphStyle
+from docx.text.paragraph import Paragraph
 
 
 STANDARD_SECTION_TITLES = {
@@ -23,6 +25,28 @@ STANDARD_SECTION_TITLES = {
     "awards": "Awards",
     "leadership": "Leadership",
     "languages": "Languages",
+}
+
+ACCENT_COLOR = RGBColor(31, 78, 121)
+BODY_COLOR = RGBColor(31, 41, 55)
+SECONDARY_TEXT_COLOR = RGBColor(75, 85, 99)
+SECTION_RULE_COLOR = "A6B7C8"
+ENTRY_LIKE_SECTION_TITLES = {
+    "education",
+    "experience",
+    "professional experience",
+    "work experience",
+    "projects",
+    "key projects",
+    "certifications",
+    "certifications & training",
+    "awards",
+    "leadership",
+}
+SKILL_LIKE_SECTION_TITLES = {
+    "technical skills",
+    "skills",
+    "core skills",
 }
 
 
@@ -67,6 +91,25 @@ def _paragraph_style(
     return style
 
 
+def _add_bottom_rule(paragraph: Paragraph) -> None:
+    """Add a thin, understated divider below a section heading."""
+    paragraph_properties = paragraph._p.get_or_add_pPr()
+    borders = paragraph_properties.find(qn("w:pBdr"))
+    if borders is None:
+        borders = OxmlElement("w:pBdr")
+        paragraph_properties.append(borders)
+
+    bottom_border = borders.find(qn("w:bottom"))
+    if bottom_border is None:
+        bottom_border = OxmlElement("w:bottom")
+        borders.append(bottom_border)
+
+    bottom_border.set(qn("w:val"), "single")
+    bottom_border.set(qn("w:sz"), "6")
+    bottom_border.set(qn("w:space"), "2")
+    bottom_border.set(qn("w:color"), SECTION_RULE_COLOR)
+
+
 def _configure_page(document: DocumentType, preferences: Mapping[str, Any]) -> None:
     section = document.sections[0]
     section.orientation = WD_ORIENT.PORTRAIT
@@ -91,7 +134,7 @@ def _configure_styles(document: DocumentType, preferences: Mapping[str, Any]) ->
     body_size = preferences["font_size_pt"]
 
     normal = cast(ParagraphStyle, styles["Normal"])
-    _set_style_font(normal, font_name, body_size, color=RGBColor(0, 0, 0))
+    _set_style_font(normal, font_name, body_size, color=BODY_COLOR)
     normal.paragraph_format.space_after = Pt(2)
     normal.paragraph_format.line_spacing = 1.05
     normal.paragraph_format.widow_control = True
@@ -103,7 +146,7 @@ def _configure_styles(document: DocumentType, preferences: Mapping[str, Any]) ->
         font_name,
         body_size + 1,
         bold=True,
-        color=RGBColor(0, 0, 0),
+        color=ACCENT_COLOR,
     )
     heading.paragraph_format.space_before = Pt(8)
     heading.paragraph_format.space_after = Pt(3)
@@ -112,8 +155,13 @@ def _configure_styles(document: DocumentType, preferences: Mapping[str, Any]) ->
 
     list_bullet = cast(ParagraphStyle, styles["List Bullet"])
     list_bullet.base_style = normal
-    _set_style_font(list_bullet, font_name, body_size, color=RGBColor(0, 0, 0))
-    list_bullet.paragraph_format.left_indent = Inches(0.22)
+    _set_style_font(
+        list_bullet,
+        font_name,
+        max(10, body_size - 0.25),
+        color=BODY_COLOR,
+    )
+    list_bullet.paragraph_format.left_indent = Inches(0.24)
     list_bullet.paragraph_format.first_line_indent = Inches(-0.14)
     list_bullet.paragraph_format.space_after = Pt(1.5)
     list_bullet.paragraph_format.line_spacing = 1.0
@@ -122,16 +170,32 @@ def _configure_styles(document: DocumentType, preferences: Mapping[str, Any]) ->
     _set_style_font(
         name_style,
         font_name,
-        19,
+        20,
         bold=True,
-        color=RGBColor(0, 0, 0),
+        color=ACCENT_COLOR,
     )
     name_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    name_style.paragraph_format.space_after = Pt(2)
+    name_style.paragraph_format.space_after = Pt(3)
     name_style.paragraph_format.keep_with_next = True
 
+    headline_style = _paragraph_style(document, "CV Headline")
+    _set_style_font(
+        headline_style,
+        font_name,
+        body_size + 0.5,
+        color=BODY_COLOR,
+    )
+    headline_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    headline_style.paragraph_format.space_after = Pt(2)
+    headline_style.paragraph_format.keep_with_next = True
+
     contact_style = _paragraph_style(document, "CV Contact")
-    _set_style_font(contact_style, font_name, 9.5, color=RGBColor(0, 0, 0))
+    _set_style_font(
+        contact_style,
+        font_name,
+        9.25,
+        color=SECONDARY_TEXT_COLOR,
+    )
     contact_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
     contact_style.paragraph_format.space_after = Pt(1)
     contact_style.paragraph_format.line_spacing = 1.0
@@ -143,9 +207,9 @@ def _configure_styles(document: DocumentType, preferences: Mapping[str, Any]) ->
         font_name,
         body_size,
         bold=True,
-        color=RGBColor(0, 0, 0),
+        color=ACCENT_COLOR,
     )
-    entry_style.paragraph_format.space_before = Pt(3)
+    entry_style.paragraph_format.space_before = Pt(4)
     entry_style.paragraph_format.space_after = Pt(0)
     entry_style.paragraph_format.keep_with_next = True
 
@@ -153,9 +217,9 @@ def _configure_styles(document: DocumentType, preferences: Mapping[str, Any]) ->
     _set_style_font(
         details_style,
         font_name,
-        max(9.5, body_size - 0.5),
+        max(9.5, body_size - 0.75),
         italic=True,
-        color=RGBColor(0, 0, 0),
+        color=SECONDARY_TEXT_COLOR,
     )
     details_style.paragraph_format.space_after = Pt(1)
     details_style.paragraph_format.keep_with_next = True
@@ -171,6 +235,13 @@ def _create_document(preferences: Mapping[str, Any]) -> DocumentType:
 def _add_contact_block(document: DocumentType, contact: Mapping[str, Any]) -> None:
     name_paragraph = document.add_paragraph(style="CV Name")
     name_paragraph.add_run(contact["full_name"])
+
+    headline_paragraph = None
+    if contact.get("headline"):
+        headline_paragraph = document.add_paragraph(
+            contact["headline"],
+            style="CV Headline",
+        )
 
     main_details = [
         contact.get("location"),
@@ -193,12 +264,15 @@ def _add_contact_block(document: DocumentType, contact: Mapping[str, Any]) -> No
 
     if detail_lines:
         document.paragraphs[-1].paragraph_format.space_after = Pt(4)
+    elif headline_paragraph is not None:
+        headline_paragraph.paragraph_format.space_after = Pt(4)
     else:
         name_paragraph.paragraph_format.space_after = Pt(4)
 
 
 def _add_section_heading(document: DocumentType, title: str) -> None:
-    document.add_paragraph(title, style="Heading 1")
+    heading = document.add_paragraph(title, style="Heading 1")
+    _add_bottom_rule(heading)
 
 
 def _add_professional_summary(document: DocumentType, summary: str) -> None:
@@ -239,13 +313,27 @@ def _add_entries(document: DocumentType, entries: Sequence[Mapping[str, Any]]) -
         _add_entry(document, entry)
 
 
+def _add_labeled_paragraph(
+    document: DocumentType,
+    label_text: str,
+    value_text: str,
+) -> None:
+    paragraph = document.add_paragraph(style="Normal")
+    label = paragraph.add_run(f"{label_text}: ")
+    label.bold = True
+    label.font.color.rgb = ACCENT_COLOR
+    paragraph.add_run(value_text)
+
+
 def _add_skill_groups(
     document: DocumentType, groups: Sequence[Mapping[str, Any]]
 ) -> None:
     for group in groups:
-        paragraph = document.add_paragraph(style="Normal")
-        paragraph.add_run(f"{group['label']}: ").bold = True
-        paragraph.add_run(", ".join(group["items"]))
+        _add_labeled_paragraph(
+            document,
+            group["label"],
+            ", ".join(group["items"]),
+        )
 
 
 def _add_languages(document: DocumentType, languages: Sequence[str]) -> None:
@@ -258,9 +346,7 @@ def _add_custom_block(document: DocumentType, block: Mapping[str, Any]) -> None:
     if block_type == "paragraph":
         document.add_paragraph(block["text"], style="Normal")
     elif block_type == "labeled_text":
-        paragraph = document.add_paragraph(style="Normal")
-        paragraph.add_run(f"{block['label']}: ").bold = True
-        paragraph.add_run(block["text"])
+        _add_labeled_paragraph(document, block["label"], block["text"])
     elif block_type == "entry":
         _add_entry(document, block["entry"])
     elif block_type == "bullet_list":
@@ -270,11 +356,47 @@ def _add_custom_block(document: DocumentType, block: Mapping[str, Any]) -> None:
         raise ValueError(f"Unsupported custom block type: {block_type}")
 
 
+def _add_custom_entry_section(
+    document: DocumentType,
+    blocks: Sequence[Mapping[str, Any]],
+) -> None:
+    """Apply entry hierarchy to common CV sections parsed from plain text."""
+    expecting_title = True
+    for block in blocks:
+        if block["block_type"] == "paragraph":
+            style = "CV Entry Title" if expecting_title else "CV Entry Details"
+            document.add_paragraph(block["text"], style=style)
+            expecting_title = False
+        else:
+            _add_custom_block(document, block)
+            expecting_title = True
+
+
+def _add_custom_skill_section(
+    document: DocumentType,
+    blocks: Sequence[Mapping[str, Any]],
+) -> None:
+    """Highlight labels in skill lines while preserving their supplied text."""
+    for block in blocks:
+        if block["block_type"] == "paragraph":
+            label, separator, value = block["text"].partition(":")
+            if separator and label.strip() and value.strip():
+                _add_labeled_paragraph(document, label.strip(), value.strip())
+                continue
+        _add_custom_block(document, block)
+
+
 def _add_custom_section(
     document: DocumentType, custom_section: Mapping[str, Any]
 ) -> None:
-    for block in custom_section["blocks"]:
-        _add_custom_block(document, block)
+    normalized_title = custom_section["title"].casefold()
+    if normalized_title in ENTRY_LIKE_SECTION_TITLES:
+        _add_custom_entry_section(document, custom_section["blocks"])
+    elif normalized_title in SKILL_LIKE_SECTION_TITLES:
+        _add_custom_skill_section(document, custom_section["blocks"])
+    else:
+        for block in custom_section["blocks"]:
+            _add_custom_block(document, block)
 
 
 def _custom_sections_by_id(payload: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
