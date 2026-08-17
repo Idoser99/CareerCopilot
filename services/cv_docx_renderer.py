@@ -178,6 +178,17 @@ def _configure_styles(document: DocumentType, preferences: Mapping[str, Any]) ->
     name_style.paragraph_format.space_after = Pt(3)
     name_style.paragraph_format.keep_with_next = True
 
+    headline_style = _paragraph_style(document, "CV Headline")
+    _set_style_font(
+        headline_style,
+        font_name,
+        body_size + 0.5,
+        color=BODY_COLOR,
+    )
+    headline_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    headline_style.paragraph_format.space_after = Pt(2)
+    headline_style.paragraph_format.keep_with_next = True
+
     contact_style = _paragraph_style(document, "CV Contact")
     _set_style_font(
         contact_style,
@@ -225,6 +236,13 @@ def _add_contact_block(document: DocumentType, contact: Mapping[str, Any]) -> No
     name_paragraph = document.add_paragraph(style="CV Name")
     name_paragraph.add_run(contact["full_name"])
 
+    headline_paragraph = None
+    if contact.get("headline"):
+        headline_paragraph = document.add_paragraph(
+            contact["headline"],
+            style="CV Headline",
+        )
+
     main_details = [
         contact.get("location"),
         contact.get("email"),
@@ -246,6 +264,8 @@ def _add_contact_block(document: DocumentType, contact: Mapping[str, Any]) -> No
 
     if detail_lines:
         document.paragraphs[-1].paragraph_format.space_after = Pt(4)
+    elif headline_paragraph is not None:
+        headline_paragraph.paragraph_format.space_after = Pt(4)
     else:
         name_paragraph.paragraph_format.space_after = Pt(4)
 
