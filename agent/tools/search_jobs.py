@@ -60,9 +60,11 @@ class JobSummary(BaseModel):
 
 
 class SearchJobsInput(BaseModel):
-    keyword: str = Field(
-        min_length=1,
-        description="Wanted job title, for example 'backend developer'",
+    keyword: str | list[str] = Field(
+        description=(
+            "One or more alternative job titles. Pass alternatives together, "
+            "for example ['backend developer', 'python developer']."
+        ),
     )
     locations: list[str] = Field(
         default_factory=list, description="Accepted cities or countries"
@@ -287,12 +289,14 @@ def summarize_job(job: dict, retrieve_fields: list[str] | None = None) -> dict:
 
 class SearchJobs(BaseTool):
     name: str = "search_jobs"
-    description: str = "Search jobs by title and candidate preferences"
+    description: str = (
+        "Search jobs once for one or more alternative titles and candidate preferences"
+    )
     args_schema: Type[BaseModel] = SearchJobsInput
 
     def _run(
         self,
-        keyword: str | None,
+        keyword: str | list[str] | None,
         locations: list[str] | None = None,
         workplace_types: list[str] | None = None,
         seniority_levels: list[str] | None = None,
@@ -305,11 +309,11 @@ class SearchJobs(BaseTool):
         minimum_score: float = 1,
         max_results: int = 10,
     ) -> ToolResponse:
-        if keyword is None and job_id is None:
-            raise ValueError("keyword and job id cannot be both empty ")
-        
-        if keyword is not None and not keyword.strip():
-            raise ValueError("keyword cannot be empty")
+        keywords = [keyword] if isinstance(keyword, str) else keyword or []
+        keywords = [value.strip() for value in keywords if value.strip()]
+        job_id = job_id.strip() if job_id else None
+        if not keywords and job_id is None:
+            raise ValueError("keyword and job id cannot both be empty")
 
         retrieve_fields = retrieve_fields or []
         unknown_fields = [
@@ -319,7 +323,7 @@ class SearchJobs(BaseTool):
             raise ValueError(f"Unknown retrieve_fields: {', '.join(unknown_fields)}")
 
         preferences = {
-            "job_titles": [keyword],
+            "job_titles": keywords,
             "locations": locations or [],
             "workplace_types": workplace_types or [],
             "seniority_levels": seniority_levels or [],
@@ -331,9 +335,12 @@ class SearchJobs(BaseTool):
             "minimum_score": minimum_score,
         }
         jobs = find_relevant_jobs(preferences, max_results=10_000)
-        jobs = [
-            job for job in jobs if "title" in job["match"]["matched_preferences"]
-        ][:max_results]
+        if keywords:
+            jobs = [
+                job for job in jobs
+                if "title" in job["match"]["matched_preferences"]
+            ]
+        jobs = jobs[:max_results]
         return ToolResponse(
             content=[summarize_job(job, retrieve_fields) for job in jobs]
         )
